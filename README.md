@@ -18,7 +18,7 @@
 
 ```powershell
 # Windows PowerShell에서 프로젝트 폴더 열기
-Invoke-RestMethod http://127.0.0.1:11435/api/tags
+Invoke-RestMethod http://127.0.0.1:11434/api/tags
 Copy-Item .env.example .env
 notepad .env
 # .env의 OLLAMA_MODEL을 설치된 모델 이름으로 수정
