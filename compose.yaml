@@ -1,0 +1,20 @@
+# 기본 실행: WSL Docker / Docker Desktop에서 Windows Ollama(11435) 호출
+name: greenzone-preview
+services:
+  web:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11435}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
+      OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-45}
+      DEMO_DB_PATH: /app/storage/demo.db
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    volumes:
+      - greenzone_sqlite:/app/storage
+volumes:
+  greenzone_sqlite:

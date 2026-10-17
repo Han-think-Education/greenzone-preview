@@ -1,0 +1,16 @@
+# 선택 사항: Ollama를 Docker 안에 별도로 실행하려는 경우에만 사용합니다.
+# docker compose -f compose.yaml -f compose.container-ollama.yaml up -d --build
+# Intel XPU 가속은 기본 ollama/ollama 이미지에서 보장되지 않습니다.
+services:
+  web:
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+    depends_on:
+      - ollama
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - greenzone_ollama:/root/.ollama
+volumes:
+  greenzone_ollama:
