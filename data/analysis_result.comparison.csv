@@ -1,0 +1,3 @@
+﻿plan_id,candidate_count,assigned_buildings,unassigned_buildings,average_distance_m,max_distance_m,coverage_pct
+A,2,21,3,229.3,567.0,88.9
+B,3,24,0,148.5,337.1,100.0

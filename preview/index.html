@@ -1,67 +1,92 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#0f172a" />
-  <title>GreenZone Preview | 그린존 프리뷰</title>
-  <link rel="stylesheet" href="styles.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#10232c">
+  <title>그린존 · 위치의 근거를 함께 봅니다</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="workspace.css">
 </head>
 <body>
-  <div class="shell">
-    <aside class="sidebar">
-      <a class="brand" href="#home"><span class="brandmark">↗</span><span>그린존<span class="brand-strong"> 프리뷰</span><small>GreenZone Preview</small></span></a>
-      <div class="side-label">WORKSPACE</div>
-      <nav class="nav" aria-label="서비스 메뉴">
-        <button class="nav-item active" data-page="home"><span>▦</span> 서비스 지도</button>
-        <button class="nav-item" data-page="assistant"><span>✦</span> AI 배출 도우미</button>
-        <button class="nav-item" data-page="admin"><span>▤</span> 관리자 대시보드</button>
-        <button class="nav-item" data-page="architecture"><span>⌘</span> 시스템 구성</button>
-      </nav>
-      <div class="side-bottom">
-        <div class="stage-card"><div class="stage-icon">01 / 05</div><strong>Docker → Windows Ollama :11435</strong><p>지도 및 건물 정보는 시연용 가상 데이터입니다.</p><div class="stage-line"><span></span></div><small>GitHub 저장소 준비용 프리뷰</small></div>
-        <div class="side-foot">2026.10 · 교육 프로젝트</div>
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="#home"><span class="brandmark">G</span><span>그린존<small>GREEN ZONE / WORKING DRAFT</small></span></a>
+    <div class="side-label">배출 거점을 함께 설계합니다</div>
+    <nav class="nav" aria-label="주요 메뉴">
+      <button class="nav-item active" data-page="home">01　거점 지도</button>
+      <button class="nav-item" data-page="analysis">02　배치 비교</button>
+      <button class="nav-item" data-page="assistant">03　배출 도우미</button>
+      <button class="nav-item" data-page="architecture">04　만드는 과정</button>
+    </nav>
+    <div class="side-bottom"><div class="stage-card"><div class="stage-icon">작은 권역에서 시작</div><strong>안전 조건을 먼저,<br>그다음 거리와 분산.</strong><p>분석 결과를 안내 화면에 연결하는 교육용 시제품입니다.</p><a href="#analysis" class="side-link" data-go="analysis">배치 근거 살펴보기</a></div><a class="side-link admin-entry" href="admin.html">담당자 관리 화면 →</a><div class="side-foot">2026 · 스마트한 배출과 안전한 수거</div></div>
+  </aside>
+  <div class="mainwrap">
+    <header class="topbar"><div class="crumb">GREEN ZONE / <b id="crumb">거점 지도</b></div><div class="top-actions"><span class="pill muted" id="apiState">연결 확인 중</span><span class="pill amber" id="datasetBadge">가상 자료 · 실제 배출 금지</span><a class="minor" href="admin.html">관리자</a></div></header>
+    <div class="scope-banner" id="scopeBanner">후보·건물·가구 수·안전 조건은 모두 시연용 가정입니다. 지도 배경은 실제 지리정보이지만, 표시한 지점은 공식 배출장소가 아닙니다.</div>
+    <p class="global-notice hidden" role="status" id="globalNotice"></p>
+    <main class="page" id="homePage">
+      <div class="page-heading"><div><div class="eyebrow">위치와 선정 이유를 한 화면에</div><h1>가까운 배출 거점,<br><em>지도에서 확인하세요.</em></h1><p>한곳에 몰기보다 가까운 여러 후보로 나누고, 주민과 수거자의 부담을 함께 살펴봅니다.</p></div><button class="ghost" data-go="analysis">A/B 배치 비교</button></div>
+      <div class="metrics"><article><span>검토할 후보</span><strong id="countCandidates">-</strong><small id="eligibleCount">안전 조건 확인</small></article><article><span>분석 대상 건물</span><strong id="countBuildings">-</strong><small>가상 건물 자료</small></article><article><span>선택안 평균 접근거리</span><strong id="averageDistance">-</strong><small>직선거리 참고값</small></article><article><span>미배정 건물</span><strong id="unassignedCount">-</strong><small>자료·거리·수용 조건 검토</small></article></div>
+      <div class="workspace">
+        <section class="panel map-panel">
+          <div class="panel-heading"><div><h2>분산 배치 지도</h2><p id="areaName">시연 권역</p></div><span class="pill muted" id="mapState">좌표 도식</span></div>
+          <div class="map-tools"><div class="segmented" id="planButtons"><button data-plan="A">A안 · 소수 거점</button><button data-plan="B" class="selected">B안 · 분산</button></div><div class="map-actions"><button class="primary" id="locateMe">내 위치</button><button class="minor" id="fitMap">시연 권역</button></div></div>
+          <div class="real-map" id="map" aria-label="후보와 건물을 표시하는 지도">
+            <svg id="fallbackMap" viewBox="0 0 880 490" role="img" aria-label="위경도 상대 위치 도식"></svg>
+          </div>
+          <div class="map-foot"><span><i class="legend-dot candidate"></i>후보 <i class="legend-dot building"></i>건물 <i class="legend-dot hold"></i>보류</span><label><input type="checkbox" id="showAssignments" checked> 제안 배정선</label></div>
+          <p class="location-status" id="locationStatus" role="status">내 위치를 누르면 위치 권한을 요청합니다. 위치는 브라우저 메모리에서만 사용합니다.</p><p class="map-note" id="mapNote">마우스로 이동·휠로 확대, 휴대폰에서는 두 손가락으로 확대할 수 있습니다. 선은 직선 연결이며 실제 보행·수거 경로가 아닙니다.</p>
+        </section>
+        <section class="panel candidate-panel" aria-labelledby="candidateHeading">
+          <div class="panel-heading"><div><h2 id="candidateHeading">후보와 선정 근거</h2><p>지점 또는 아래 후보를 선택하세요.</p></div></div>
+          <div id="candidateChoices" class="candidate-choices"></div>
+          <div id="candidateDetail" class="candidate-detail" aria-live="polite"></div>
+        </section>
       </div>
-    </aside>
-    <div class="mainwrap">
-      <header class="topbar"><div class="crumb">PROJECT / <b id="crumb">서비스 지도</b></div><div class="top-actions"><span class="pill muted" id="apiState">● 프리뷰 데이터</span><span class="pill amber">⚠ 실제 배출 안내 아님</span></div></header>
-      <main class="page" id="homePage">
-        <div class="page-heading"><div><div class="eyebrow">NEIGHBORHOOD DISPOSAL PLATFORM</div><h1>우리 동네 배출 정보를<br/><em>한눈에 확인하세요.</em></h1><p>건물을 선택하고 품목을 지정하면 배출 방법과 관련 시설을 안내합니다.</p></div><div class="heading-tag">양천구 · 신정2동 <span>시연 범위</span></div></div>
-        <div class="metrics"><article><span>시범 구역</span><strong id="countZones">03</strong><small>ZONE A·B·C</small></article><article><span>등록 건물</span><strong id="countBuildings">24</strong><small>가상 샘플</small></article><article><span>지원 품목</span><strong>04</strong><small>일반·재활용·건전지·대형</small></article><article><span>시연 요청</span><strong id="countRequests">00</strong><small>API 또는 세션</small></article></div>
-        <div class="workspace">
-          <section class="panel map-panel"><div class="panel-heading"><div><h2>배출 서비스 지도</h2><p>도로와 구역 경계는 기능 검증용 도식입니다.</p></div><div class="key"><span><i class="dot indigo"></i>건물</span><span><i class="dot green"></i>시설 예시</span><span><i class="dot orange"></i>선택 건물</span></div></div>
-            <div class="map-tools"><div class="segmented" id="zoneButtons"><button data-zone="ALL" class="selected">전체</button><button data-zone="A">ZONE A</button><button data-zone="B">ZONE B</button><button data-zone="C">ZONE C</button></div><span class="map-label">DEMO MAP / NOT GEOGRAPHIC</span></div>
-            <div class="map-stage"><svg class="map-svg" id="demoMap" viewBox="0 0 880 490" role="img" aria-label="ZONE A, B, C 및 선택 가능한 가상 건물 위치를 표시한 시연용 지도">
-              <defs><pattern id="grid" width="34" height="34" patternUnits="userSpaceOnUse"><path d="M34 0 H0 V34" fill="none" stroke="#e7ebe9" stroke-width="1"/></pattern></defs>
-              <rect width="880" height="490" fill="#f5f8f5"/><rect width="880" height="490" fill="url(#grid)"/>
-              <path d="M-20 250 L900 210" stroke="white" stroke-width="47"/><path d="M-20 250 L900 210" stroke="#dce6df" stroke-width="2" stroke-dasharray="12 9"/>
-              <path d="M447 -30 L410 530" stroke="white" stroke-width="54"/><path d="M447 -30 L410 530" stroke="#dce6df" stroke-width="2" stroke-dasharray="12 9"/>
-              <path d="M-15 80 L900 385" stroke="white" stroke-width="23"/><path d="M-15 80 L900 385" stroke="#e2e9e3" stroke-width="1.5" stroke-dasharray="11 8"/>
-              <g id="zonesLayer"><path id="areaA" d="M64 58 L393 72 L367 203 L71 211 Z" fill="#b6d5f5" fill-opacity="0.5" stroke="#6e9bd7" stroke-width="2" stroke-dasharray="6 4"/><path id="areaB" d="M486 59 L811 65 L806 199 L474 196 Z" fill="#bfeadf" fill-opacity="0.5" stroke="#52ad92" stroke-width="2" stroke-dasharray="6 4"/><path id="areaC" d="M110 290 L744 271 L761 443 L97 436 Z" fill="#e6d8fb" fill-opacity="0.46" stroke="#a78bd3" stroke-width="2" stroke-dasharray="6 4"/>
-              <g fill="#5d7184" font-size="16" font-weight="800" font-family="Arial, sans-serif"><text x="83" y="87">ZONE A</text><text x="502" y="88">ZONE B</text><text x="130" y="319">ZONE C</text></g></g>
-              <g id="buildingLayer"></g>
-              <g class="facility-markers"><circle cx="732" cy="160" r="12" fill="#059669" stroke="white" stroke-width="4"/><path d="M727 160l3 3 6-7" stroke="white" stroke-width="2" fill="none"/><circle cx="656" cy="367" r="12" fill="#059669" stroke="white" stroke-width="4"/><path d="M651 367l3 3 6-7" stroke="white" stroke-width="2" fill="none"/></g>
-              <g><rect x="25" y="455" rx="7" width="221" height="25" fill="white" opacity="0.94"/><text x="35" y="472" fill="#59716b" font-size="12">샘플 지형 · 실제 위치가 아닙니다</text></g>
-            </svg></div>
-            <div class="map-foot"><span>◉ 위치 데이터: 가상 좌표 · 실측 없음</span><span>시설 2개는 가상 예시</span></div>
-          </section>
-          <aside class="panel filter-panel"><div class="panel-heading"><div><h2>배출 방법 조회</h2><p>3단계만 선택하면 됩니다.</p></div><span class="stepbadge">STEP 01—03</span></div>
-            <label for="buildingSearch">① 건물 검색</label><input id="buildingSearch" type="search" placeholder="예: A-01, ZONE B" autocomplete="off"/><select id="buildingSelect" aria-label="건물 선택"></select><p class="field-help" id="buildingContext">지도의 건물 마커를 선택해도 됩니다.</p>
-            <label for="categorySelect">② 배출 품목</label><select id="categorySelect"><option value="general">일반 생활폐기물</option><option value="recycle">재활용품</option><option value="battery">폐건전지</option><option value="bulky">대형폐기물 / 가구</option></select>
-            <label for="quantity">③ 수량</label><div class="input-row"><input id="quantity" type="number" min="1" max="99" value="1"/><button class="primary" id="matchButton">배출 방법 확인 →</button></div>
-            <div class="result" id="matchResult" aria-live="polite"><div class="result-empty">건물과 품목을 선택한 뒤<br/>배출 방법을 확인하세요.</div></div>
-            <button class="ghost wide" id="requestButton" disabled>＋ 데모 요청 등록</button>
-            <div class="caution"><b>데이터 검증 원칙</b><p>확인되지 않은 수거 시설이나 건물별 배출 위치는 실제 장소처럼 안내하지 않습니다.</p></div>
-          </aside>
+      <section class="panel nearby-panel" aria-labelledby="nearbyHeading">
+        <div class="panel-heading"><div><h2 id="nearbyHeading">가까운 제안 거점</h2><p>선택한 배치안에 포함된 후보만 거리순으로 봅니다. 실제 운영 장소는 아직 없습니다.</p></div><div class="nearby-actions"><button class="minor" id="useBuildingLocation">선택 건물로 시연</button><button class="minor" id="clearLocation" disabled>위치 지우기</button></div></div>
+        <p class="nearby-summary" id="nearbySummary" role="status">내 위치를 확인하거나, 선택한 시연 건물을 기준으로 살펴보세요.</p>
+        <div id="nearbyList" class="nearby-list"></div>
+        <p class="map-note">직선거리이며 보행 경로·횡단·경사는 반영하지 않습니다. 가까운 후보가 건물별 배정 장소를 대신하지 않습니다.</p>
+      </section>
+      <section class="panel citizen-panel">
+        <div class="panel-heading"><div><h2>건물에서 배출 안내까지</h2><p>준비된 건물 목록 안에서 검색합니다. 실제 전국 주소 검색 기능은 아닙니다.</p></div><span class="pill muted">시연 배정·규칙</span></div>
+        <div class="citizen-grid">
+          <div class="lookup-form">
+            <label for="buildingSearch">건물 또는 주소 검색</label><input id="buildingSearch" type="search" placeholder="예: A-01, 데모 빌라" autocomplete="off">
+            <div class="lookup-row"><select id="buildingSelect" aria-label="검색한 건물"></select><select id="categorySelect" aria-label="배출 품목"><option value="general">일반 생활폐기물</option><option value="recycle">재활용품</option><option value="battery">폐건전지</option><option value="bulky">대형폐기물</option></select></div>
+            <p class="field-help" id="buildingContext"></p>
+            <div class="lookup-row"><label class="quantity-label" for="quantity">시연 수량 <input id="quantity" type="number" min="1" max="99" value="1"></label><button class="primary" id="matchButton">배정·배출 규칙 확인</button></div>
+          </div>
+          <div><div class="result" id="matchResult" aria-live="polite"><div class="result-empty">건물을 선택하고 안내를 확인하세요.</div></div><details class="legacy-request"><summary>시연 요청 접수</summary><p>동작 연결을 위한 기록이며 실제 수거 예약이 아닙니다.</p><button class="ghost" id="requestButton" disabled>데모 요청 등록</button><span id="countRequests">0</span>건</details></div>
         </div>
-        <div class="preview-ribbon"><span>✦</span><div><b>오늘의 프리뷰 목표</b><p>지도 선택 → 배출 규칙 → 결과 확인 → 요청 등록 → 관리자 조회까지 한 번에 시연</p></div><button id="toAssistant">AI 상담 체험 ↗</button></div>
-      </main>
-      <main class="page hidden" id="assistantPage"><div class="sectionhead"><div class="eyebrow">AI WORKFLOW PREVIEW</div><h1>AI 배출 도우미 <small>Ollama / 대체 모드</small></h1><p>Windows Ollama(11435)가 연결되면 실제 모델에 질의하고, 장애 시에는 안전한 기본 안내를 제공합니다.</p></div><div class="assistant-grid"><section class="panel chat-panel"><div class="panel-heading"><h2>질문하기</h2><span class="pill muted" id="aiStatus">Ollama 확인 중</span></div><div class="chats" id="chatMessages"><div class="bubble bot">일반쓰레기, 재활용품, 폐건전지, 대형폐기물에 대해 질문하세요. Ollama 모델이 준비되면 실제 생성 결과를 보여줍니다.</div></div><div class="quick-prompts"><button data-prompt="일반쓰레기는 언제 버리나요?">일반쓰레기는 언제?</button><button data-prompt="폐건전지 수거함 어디 있어?">폐건전지 수거함</button><button data-prompt="의자를 버리고 싶어">의자 배출 방법</button></div><form id="chatForm" class="chat-form"><input id="chatInput" placeholder="예: 오래된 의자는 어떻게 버려?" required/><button class="primary" type="submit">보내기 →</button></form></section><section class="panel flow-panel"><div class="panel-heading"><h2>LangGraph 실행 구성</h2></div><div class="node">01 <strong>classify_intent</strong><span>품목·의도 분류</span></div><div class="arrowdown">↓</div><div class="node">02 <strong>validate_input</strong><span>알 수 없는 품목 차단</span></div><div class="arrowdown">↓</div><div class="node">03 <strong>query_rules</strong><span>확인된 DB 데이터 조회</span></div><div class="arrowdown">↓</div><div class="node">04 <strong>build_response</strong><span>사용자용 안내 생성</span></div><div class="arrowdown">↓</div><div class="node finalnode">05 <strong>validate_output</strong><span>확인되지 않은 장소 안내 금지</span></div><p class="flow-note">Ollama 연동은 구현되었습니다. 오른쪽 노드 그래프는 LangGraph 도입 예정 설계도이며 현재는 FastAPI 분기 함수로 동작합니다.</p></section></div></main>
-      <main class="page hidden" id="adminPage"><div class="sectionhead"><div class="eyebrow">ADMIN OPERATIONS</div><h1>관리자 대시보드 <small>데모</small></h1><p>배출 요청 현황과 데이터 검증 상태를 확인합니다. API 연결 시 SQLite에 시연 요청이 저장됩니다. 실제 예약·배차는 수행하지 않습니다.</p></div><div class="metrics adminmetrics"><article><span>전체 건물</span><strong id="adminBuildingCount">24</strong><small>가상 데이터</small></article><article><span>검증된 건물</span><strong>00</strong><small>현장 검증 전</small></article><article><span>데모 요청</span><strong id="adminRequestCount">00</strong><small>세션 데이터</small></article><article><span>데이터 정확성</span><strong>검증 전</strong><small>실제 운영 불가</small></article></div><div class="admin-grid"><section class="panel"><div class="panel-heading"><h2>요청 목록</h2><button class="minor" id="clearRequests">로컬 화면 초기화</button></div><div class="tablewrap"><table><thead><tr><th>번호</th><th>건물</th><th>품목</th><th>수량</th><th>상태</th></tr></thead><tbody id="requestsTable"></tbody></table></div></section><section class="panel"><div class="panel-heading"><h2>출시 전 데이터 검증</h2></div><ul class="checks"><li><b>행정동 경계</b><span>대기</span></li><li><b>건물 주소와 좌표</b><span>대기</span></li><li><b>품목별 수거시설</b><span>대기</span></li><li><b>공식 배출 요일</b><span>대기</span></li><li><b>신고·예약 연동</b><span>대기</span></li></ul><div class="caution">프리뷰 단계에서는 배출 위치·운영 시간을 실데이터로 확정하지 않습니다.</div></section></div></main>
-      <main class="page hidden" id="architecturePage"><div class="sectionhead"><div class="eyebrow">SYSTEM BLUEPRINT</div><h1>구현 구조 <small>5-day MVP</small></h1><p>수업에서 배운 기술을 순서대로 연결할 수 있도록 복잡한 기능을 분리했습니다.</p></div><div class="arch-grid"><article><span>01 / FRONT</span><h3>지도 & 사용자 화면</h3><p>HTML · CSS · JavaScript</p><div class="archstatus ready">오늘 프리뷰</div></article><article><span>02 / API</span><h3>조회 & 매칭 API</h3><p>FastAPI · Pydantic</p><div class="archstatus pending">2일차</div></article><article><span>03 / DATA</span><h3>건축물 · 규칙</h3><p>SQLite · SQLAlchemy 확장</p><div class="archstatus pending">2일차</div></article><article><span>04 / AI</span><h3>의도 분류 & 설명</h3><p>LangGraph(확장) · Windows Ollama</p><div class="archstatus pending">3일차</div></article><article><span>05 / DEPLOY</span><h3>시연 서버</h3><p>Docker · 배포</p><div class="archstatus pending">4일차</div></article><article><span>06 / QA</span><h3>테스트 · 발표</h3><p>API · 규칙 오류 · 사용자 흐름</p><div class="archstatus pending">5일차</div></article></div><div class="panel appflow"><h2>전체 실행 순서</h2><p>건물 선택 → FastAPI 조회 → 검증된 배출 규칙/시설 필터 → 안내 결과 → (선택) AI 문장 생성</p><p><b>설계 원칙:</b> AI가 중단되어도 기본 배출 안내는 동작해야 합니다.</p></div></main>
-      <footer class="footer">GREENZONE PREVIEW · EDUCATION DEMO · 공식 안내·실제 위치로 사용 금지</footer>
-    </div>
+      </section>
+    </main>
+    <main class="page hidden" id="analysisPage">
+      <div class="sectionhead"><div class="eyebrow">분석 결과를 비교합니다</div><h1>왜 이 배치일까요?</h1><p>안전 조건으로 먼저 거른 뒤, 거점 수에 따른 접근거리와 담당 부담을 비교합니다.</p></div>
+      <div class="analysis-method"><span>01 안전 검토</span><b>→</b><span>02 가용 후보 선정</span><b>→</b><span>03 건물 분산 배정</span><b>→</b><span>04 A/B안 비교</span></div>
+      <p class="analysis-note" id="analysisMethod"></p>
+      <div class="plan-cards" id="comparisonCards"></div>
+      <section class="panel"><div class="panel-heading"><div><h2>선택안의 담당 부담</h2><p>수요·수용 기준의 단위와 출처를 확인하세요. 가구 수는 실제 배출량과 다릅니다.</p></div><button class="minor" id="exportAnalysis">결과 JSON 저장</button></div><div class="tablewrap"><table><thead><tr><th>후보</th><th>담당 건물</th><th>담당 수요</th><th>수용 가정</th></tr></thead><tbody id="loadTable"></tbody></table></div></section>
+      <div class="analysis-bottom"><section class="panel"><div class="panel-heading"><h2>보류한 이유도 남깁니다</h2></div><div id="heldCandidates" class="padded-list"></div></section><section class="panel"><div class="panel-heading"><h2>자료와 계산의 한계</h2></div><div class="padded-list"><p>거리는 위경도 사이의 직선거리입니다. 도로 폭, 경사, 횡단, 실제 수거 동선은 추가 확인해야 합니다.</p><p>단순한 순차 배정 결과이며 최적해나 실제 안전 개선 효과를 보장하지 않습니다.</p><p id="unassignedNote"></p></div></section></div>
+      <section class="panel source-panel"><div class="panel-heading"><div><h2>자료 출처와 추가 조사</h2><p>공공자료 링크는 조사 참고 출처입니다. 현재 가상 수치의 근거로 사용하지 않았습니다.</p></div></div><div id="sourceList" class="source-list"></div></section>
+    </main>
+    <main class="page hidden" id="assistantPage">
+      <div class="sectionhead"><div class="eyebrow">품목과 질문 의도를 읽습니다</div><h1>배출 전 궁금한 것</h1><p>위치와 시간은 저장된 안내를 사용합니다. AI가 문장을 만들어 사실처럼 안내하지 않습니다.</p></div>
+      <div class="assistant-grid"><section class="panel chat-panel"><div class="panel-heading"><h2>질문하기</h2><span class="pill muted" id="aiStatus">규칙 기반 안내</span></div><div class="chats" id="chatMessages"><div class="bubble bot">일반쓰레기, 재활용품, 폐건전지, 대형폐기물을 물어보세요. 확인되지 않은 정보는 확인이 필요하다고 안내합니다.</div></div><div class="quick-prompts"><button data-prompt="일반쓰레기는 언제 버리나요?">배출 요일</button><button data-prompt="폐건전지 수거함 어디 있어?">폐건전지 위치</button><button data-prompt="의자를 버리고 싶어">의자 배출</button></div><form id="chatForm" class="chat-form"><input id="chatInput" maxlength="500" placeholder="예: 재활용품은 언제 배출하나요?" required><button class="primary" type="submit">보내기</button></form></section><section class="panel"><div class="panel-heading"><h2>답변이 만들어지는 방식</h2></div><ol class="answer-steps"><li><b>품목과 질문 의도 구분</b><p>키워드 또는 선택적으로 연결한 AI가 정해진 항목만 고릅니다.</p></li><li><b>저장된 규칙 조회</b><p>요일·시간·원문은 관리자가 저장한 안내에서 가져옵니다.</p></li><li><b>미확인은 그대로 안내</b><p>새 장소를 만들거나 제안 후보를 실제 배출장소로 확정하지 않습니다.</p></li></ol><p class="flow-note">AI가 꺼져 있거나 연결되지 않아도 기본 안내는 사용할 수 있습니다.</p></section></div>
+    </main>
+    <main class="page hidden" id="architecturePage">
+      <div class="sectionhead"><div class="eyebrow">배운 기술을 작은 단위로 연결</div><h1>만드는 과정</h1><p>분석은 별도 파일로, 웹은 결과 조회와 수정으로 나누었습니다.</p></div>
+      <div class="arch-grid"><article><span>01 / ANALYSIS</span><h3>CSV 분석</h3><p>안전 조건, 거리 계산, 수용 기준과 분산 배정. A/B 비교표와 JSON 출력.</p></article><article><span>02 / SERVICE</span><h3>안내 웹</h3><p>HTML·CSS·JS와 Leaflet. 외부 지도가 없어도 좌표 도식과 목록 제공.</p></article><article><span>03 / SERVER</span><h3>조회와 정보 수정</h3><p>FastAPI·SQLite. 담당자 세션, 수정 충돌 확인, 변경 기록.</p></article></div>
+      <section class="panel appflow"><h2>분석 파일에서 웹까지</h2><p>후보·건물 CSV → Python 분석 → 결과 JSON → SQLite → 지도·배치 비교·규칙 안내</p><p>담당자 수정 → SQLite 저장 → 같은 분석 기준으로 다시 계산 → 화면에 반영</p><h2>AI는 선택 기능</h2><p>Ollama가 품목·질문 의도를 JSON으로 반환하면 허용된 값만 사용합니다. 안내 문장은 저장된 자료에서 구성합니다. LangGraph·RAG·모델 학습·영상 분석은 이번 구현에 포함하지 않았습니다.</p></section>
+    </main>
+    <footer class="footer">GREEN ZONE · 위치 선정과 안내 흐름을 보여 주는 교육용 시제품</footer>
   </div>
-  <script src="app.js"></script>
+</div>
+<script src="demo-data.js"></script>
+<script src="common.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

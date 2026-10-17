@@ -1,0 +1,5 @@
+﻿candidate_id,name,lat,lon,capacity,capacity_unit,truck_access,stopping_space,work_space,pedestrian_clear,review_status,rationale,safety_note,source_id,checked_at,is_demo
+GZ-01,시연 후보 01 · 북서,37.5234,126.8676,65,시연 가구,pass,pass,pass,pass,review,북서측 가상 건물을 나누어 담당하는 배치 가정,위치와 안전 조건 모두 가상입니다. 현장 확인 전 실제 배출 금지.,DEMO,2026-10-17,1
+GZ-02,시연 후보 02 · 북동,37.5231,126.8746,65,시연 가구,pass,pass,pass,pass,review,북동측 가상 건물의 접근 부담을 줄이는 배치 가정,위치와 안전 조건 모두 가상입니다. 현장 확인 전 실제 배출 금지.,DEMO,2026-10-17,1
+GZ-03,시연 후보 03 · 남측,37.5189,126.871,65,시연 가구,pass,pass,pass,pass,review,남측 건물을 분산시켜 먼 거리 배정을 줄이는 배치 가정,위치와 안전 조건 모두 가상입니다. 현장 확인 전 실제 배출 금지.,DEMO,2026-10-17,1
+GZ-04,시연 후보 04 · 보류,37.5212,126.8704,65,시연 가구,pass,pass,pass,fail,hold,가까워도 보행 안전이 충족되지 않으면 제외하는 시연,위치와 안전 조건 모두 가상입니다. 현장 확인 전 실제 배출 금지.,DEMO,2026-10-17,1

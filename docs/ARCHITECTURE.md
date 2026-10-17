@@ -1,29 +1,35 @@
-# GreenZone Preview 구성
+# 그린존 구현 구조
 
 ```text
-Windows host
-  Ollama :11435   ← 모델 서버는 Windows 설치본 유지
-     ↑ HTTP /api/chat, /api/tags
-Docker (WSL2 / Docker Desktop)
-  FastAPI :8000   ← host.docker.internal:11435
-     ↕
-  SQLite volume
-     ↑
-브라우저 JS fetch + SVG 데모 지도
+CSV 후보·건물 + 출처 메타정보
+          |
+   backend/analysis.py
+          |
+분석 결과 JSON / 비교 CSV
+          |
+backend/catalog.py → SQLite
+          |
+     FastAPI API
+          |
+HTML·JS / Leaflet / 좌표 도식
 ```
 
-## API → DB → LLM 경계
+## 역할 구분
 
-- GET `/api/zones` / `/api/buildings` / `/api/disposal-rules`는 SQLite와 기본 정적 규칙을 조회한다.
-- POST `/api/match`는 검증 전 데이터를 실제 배출 위치로 추천하지 않는다.
-- POST `/api/requests`는 DB에 시연 요청만 저장하며 실제 예약은 생성하지 않는다.
-- POST `/api/chat`는 Python으로 입력 품목을 검증한 뒤 Ollama에 안전한 안내문을 기반으로 응답하도록 요청한다.
-- Ollama 오류 시 fallback이며 `ai_used=false`로 표기한다.
-- **LangGraph는 후속 단계**에서 상태 그래프와 분기 노드로 연결할 예정이다. 현재 프리뷰의 그래프는 설계 시각화이다.
+분석 담당자는 CSV·메타정보와 배치안을 별도로 정리합니다. 개발 담당자는 저장된 후보·배정·규칙·출처를 지도와 안내 화면에 연결합니다. 현재 SQLite 정보를 수정하면 같은 분석 함수로 비교 결과를 다시 계산합니다.
 
-## Docker 네트워킹
+## 기존 자료 보존
 
-- `.env.example`: `OLLAMA_BASE_URL=http://host.docker.internal:11435`
-- 컨테이너 안의 `localhost`는 Windows 호스트가 아니다.
-- Docker Desktop의 `host.docker.internal` 경로를 우선 사용한다. 독립 WSL Docker Engine이면 호스트 접근 및 라우팅을 별도 확인한다.
-- Ollama를 인터넷에 공개하지 않는다.
+기존 zones, buildings, disposal_requests를 유지하면서 후보·출처·규칙·수정 기록과 필요한 열을 추가했습니다. 자료 파일은 초기 입력용이며 기존 담당자 수정을 자동 덮어쓰지 않습니다.
+
+## AI 경계
+
+AI는 허용된 품목과 질문 의도만 선택합니다. 자유 생성 문장을 그대로 시민에게 표시하지 않습니다. 위치·시간·링크는 DB 규칙과 정해진 문구에서 가져옵니다. AI 비활성·장애·출력 오류는 규칙 기반 안내로 전환합니다.
+
+## 권한과 저장
+
+담당자 한 계정과 메모리 세션, HttpOnly·SameSite 쿠키를 사용합니다. 단일 서버 프로세스를 전제로 합니다. 후보·규칙 수정은 인증과 revision을 확인하고 DB에 이력을 남깁니다. 서버 재시작 시 다시 로그인합니다.
+
+## 지도
+
+Leaflet과 OSM 일반 배경지도에 실제 좌표 형식으로 표시합니다. 초기 좌표는 가상입니다. 배경 또는 지도 라이브러리 로딩 실패 시 상대 좌표 도식과 목록을 사용합니다. 배정선은 경로가 아닙니다.
