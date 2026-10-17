@@ -1,6 +1,6 @@
 # GreenZone Preview | 그린존 프리뷰
 
-**5일 교육 프로젝트**: Windows/WSL Docker + Windows Ollama(11435) + FastAPI + SQLite + HTML/JS.
+**5일 교육 프로젝트**: Windows/WSL Docker + Windows Ollama(11434) + FastAPI + SQLite + HTML/JS.
 
 > ⚠ ZONE A/B/C, 건물 24개, 지도 마커는 **전부 가상 시연 데이터**입니다. 실제 배출 장소, 행정 정보, 예약 서비스가 아닙니다.
 
@@ -9,7 +9,7 @@
 - 지도 시뮬레이션: 3개 구역, 가상 건물 24개, 선택 및 검색
 - 배출 분류와 규칙 조회, 수량 검증, 시연 요청 등록, SQLite 저장
 - FastAPI GET / POST / JSON, 자동 Swagger 문서
-- Windows Ollama **11435** 연결: `http://host.docker.internal:11435` (Docker 컨테이너에서)
+- Windows Ollama **11434** 연결: `http://host.docker.internal:11434` (Docker 컨테이너에서)
 - Ollama 미접속 시 안전한 규칙 기반 안내로 전환, **AI 연결 여부를 화면에서 구분**
 - **LangGraph 미구현**: 도식 화면은 개발 예정 기능 설명입니다.
 - **실제 카카오 지도 미연동**: 현재는 클릭 가능한 SVG 지도 도식입니다.
