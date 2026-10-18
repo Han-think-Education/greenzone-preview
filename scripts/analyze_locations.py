@@ -26,11 +26,10 @@ def rows(path: Path, numeric: tuple[str, ...]) -> list[dict]:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--candidates", type=Path, default=ROOT / "data/sample_candidates.csv")
-    parser.add_argument("--buildings", type=Path, default=ROOT / "data/sample_buildings.csv")
-    parser.add_argument("--metadata", type=Path, default=ROOT / "data/catalog_metadata.json")
-    parser.add_argument("--out", type=Path, default=ROOT / "data/analysis_result.json")
-    parser.add_argument("--preview-snapshot", action="store_true", help="명시적으로 독립 프리뷰용 JS도 작성")
+    parser.add_argument("--candidates", type=Path, required=True)
+    parser.add_argument("--buildings", type=Path, required=True)
+    parser.add_argument("--metadata", type=Path, required=True)
+    parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     catalog = json.loads(args.metadata.read_text(encoding="utf-8"))
     catalog["candidates"] = rows(args.candidates, ("lat", "lon", "capacity"))
@@ -63,8 +62,6 @@ def main():
         candidate["eligibility"] = eligibility(candidate)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(catalog, ensure_ascii=False, indent=2), encoding="utf-8")
-    if args.preview_snapshot:
-        (ROOT / "preview/demo-data.js").write_text("'use strict';\nwindow.GREENZONE_DEMO = " + json.dumps(catalog, ensure_ascii=False) + ";\n", encoding="utf-8")
     with args.out.with_suffix(".comparison.csv").open("w", encoding="utf-8-sig", newline="") as f:
         fields = ["plan_id", "candidate_count", "assigned_buildings", "unassigned_buildings", "average_distance_m", "max_distance_m", "coverage_pct"]
         w = csv.DictWriter(f, fieldnames=fields)

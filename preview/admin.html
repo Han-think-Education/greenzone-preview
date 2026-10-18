@@ -19,10 +19,10 @@
   </aside>
   <div class="mainwrap">
     <header class="topbar"><div class="crumb">GREEN ZONE / <b>관리자</b></div><div class="top-actions"><span class="pill muted" id="apiState">연결 확인 중</span><a class="minor" href="/index.html">사용자 화면</a></div></header>
-    <div class="scope-banner">교육용 시연 자료입니다. 검토 상태를 바꾸어도 실제 운영·배출 승인이 되지 않습니다.</div>
+    <div class="scope-banner">공식 자료에서 도출한 현장 조사 기준점입니다. 검토 상태 변경만으로 실제 운영·배출 승인이 되지 않습니다.</div>
     <p class="global-notice hidden" role="status" id="globalNotice"></p>
     <main class="page" id="adminPage">
-      <div class="sectionhead"><div class="eyebrow">기록을 남기며 수정합니다</div><h1>후보와 안내 정보 관리</h1><p>지도에서 보이는 선정 근거와 규칙을 같은 자료로 관리합니다. 수정해도 가상 자료가 실제 승인 장소로 바뀌지는 않습니다.</p></div>
+      <div class="sectionhead"><div class="eyebrow">기록을 남기며 수정합니다</div><h1>후보와 안내 정보 관리</h1><p>지도에서 보이는 선정 근거와 규칙을 같은 자료로 관리합니다. 안전·부지·관리 확인을 거쳐 실제 배출 위치를 별도로 선정해야 합니다.</p></div>
       <section class="panel login-panel" id="loginPanel"><h2>담당자 로그인</h2><p id="loginHint">서버 실행 때 준비한 담당자 접속정보를 사용하세요.</p><form id="loginForm" class="login-form"><label>아이디<input id="adminUsername" value="admin" autocomplete="username" required></label><label>비밀번호<input id="adminPassword" type="password" autocomplete="current-password" required></label><button class="primary" type="submit">로그인</button></form><p class="form-message" id="loginMessage" role="status"></p></section>
       <div id="editorPanel" class="hidden">
         <div class="editor-toolbar"><span class="pill muted">담당자 로그인됨</span><button class="ghost" id="logoutButton">로그아웃</button></div>
@@ -38,15 +38,15 @@
           <section class="panel edit-panel"><h2>배출 규칙</h2><label>수정할 품목<select id="editRuleSelect"></select></label><form id="ruleForm">
             <div class="edit-two"><label>배출 요일<input id="editDays" maxlength="120" placeholder="미확인이면 비워 두세요"></label><label>배출 시간<input id="editTime" maxlength="120" placeholder="미확인이면 비워 두세요"></label></div>
             <label>안내 내용<textarea id="editGuidance" rows="4" maxlength="2000" required></textarea></label><label>원문 주소<input id="editSourceUrl" type="url" placeholder="https://"></label><label>자료 기준일<input id="editReferenceDate" maxlength="40" placeholder="예: 2026-10-17"></label>
-            <p class="editor-note">현재 시연 규칙입니다. 예시 요일·시간을 넣더라도 시민 화면에는 시연 자료로 표시됩니다.</p><button class="primary" type="submit">규칙 저장</button><p class="form-message" id="ruleMessage" role="status"></p>
+            <p class="editor-note">기본 안내의 근거를 확인하고 수정합니다. 미확인 요일·시간을 임의로 입력하지 마세요.</p><button class="primary" type="submit">규칙 저장</button><p class="form-message" id="ruleMessage" role="status"></p>
           </form><h3 class="history-title">최근 수정</h3><div id="changeHistory" class="history-list"></div></section>
         </div>
-      <section class="panel requests-panel"><div class="panel-heading"><div><h2>시연 요청 목록</h2><p>실제 수거 예약이나 배차를 수행하지 않습니다.</p></div><div><span id="adminRequestCount">0</span>건 <button class="minor" id="clearRequests">보관 범위 안내</button></div></div><div class="tablewrap"><table><thead><tr><th>번호</th><th>건물</th><th>품목</th><th>수량</th><th>상태</th></tr></thead><tbody id="requestsTable"></tbody></table></div></section>
+      <section class="panel requests-panel"><div class="panel-heading"><div><h2>접수 연계 기록</h2><p>실제 수거 예약이나 배차를 수행하지 않습니다.</p></div><div><span id="adminRequestCount">0</span>건 <button class="minor" id="clearRequests">보관 범위 안내</button></div></div><div class="tablewrap"><table><thead><tr><th>번호</th><th>건물</th><th>품목</th><th>수량</th><th>상태</th></tr></thead><tbody id="requestsTable"></tbody></table></div></section>
       </div>
     </main>
 
     <footer class="footer">GREEN ZONE · 담당자 정보 관리</footer>
   </div>
 </div>
-<script src="/demo-data.js"></script><script src="/common.js"></script><script src="/admin.js"></script>
+<script src="/catalog-data.js?v=20261018-realareas1"></script><script src="/common.js"></script><script src="/admin.js?v=20261018-realareas1"></script>
 </body></html>

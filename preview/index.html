@@ -7,7 +7,7 @@
   <title>그린존 · 위치의 근거를 함께 봅니다</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="workspace.css">
+  <link rel="stylesheet" href="workspace.css?v=20261018-address1">
 </head>
 <body>
 <div class="shell">
@@ -16,77 +16,48 @@
     <div class="side-label">배출 거점을 함께 설계합니다</div>
     <nav class="nav" aria-label="주요 메뉴">
       <button class="nav-item active" data-page="home">01　거점 지도</button>
-      <button class="nav-item" data-page="analysis">02　배치 비교</button>
-      <button class="nav-item" data-page="assistant">03　배출 도우미</button>
+      <button class="nav-item" data-page="analysis">02　두 지역 분석</button>
+      <button class="nav-item" data-page="assistant">03　해우리 도우미</button>
       <button class="nav-item" data-page="architecture">04　만드는 과정</button>
     </nav>
     <div class="side-bottom"><div class="stage-card"><div class="stage-icon">작은 권역에서 시작</div><strong>안전 조건을 먼저,<br>그다음 거리와 분산.</strong><p>분석 결과를 안내 화면에 연결하는 교육용 시제품입니다.</p><a href="#analysis" class="side-link" data-go="analysis">배치 근거 살펴보기</a></div><a class="side-link admin-entry" href="admin.html">담당자 관리 화면 →</a><div class="side-foot">2026 · 스마트한 배출과 안전한 수거</div></div>
   </aside>
   <div class="mainwrap">
-    <header class="topbar"><div class="crumb">GREEN ZONE / <b id="crumb">거점 지도</b></div><div class="top-actions"><span class="pill muted" id="apiState">연결 확인 중</span><span class="pill amber" id="datasetBadge">가상 자료 · 실제 배출 금지</span><a class="minor" href="admin.html">관리자</a></div></header>
-    <div class="scope-banner" id="scopeBanner">후보·건물·가구 수·안전 조건은 모두 시연용 가정입니다. 지도 배경은 실제 지리정보이지만, 표시한 지점은 공식 배출장소가 아닙니다.</div>
+    <header class="topbar"><div class="crumb">GREEN ZONE / <b id="crumb">거점 지도</b></div><div class="top-actions"><span class="pill muted" id="apiState">연결 확인 중</span><span class="pill amber" id="datasetBadge">공식 자료 · 운영 위치 미확정</span><a class="minor" href="admin.html">관리자</a></div></header>
+    <div class="scope-banner" id="scopeBanner">공식 경계·건물·대장·도로 자료로 두 지역을 비교했습니다. 아파트 주거 배정은 제외하고 상가·학교·의료·복합용도를 함께 봅니다. 지도 좌표는 건물 필지 대표점과 현장 조사 기준점이며 실제 배출장소가 아닙니다.</div>
     <p class="global-notice hidden" role="status" id="globalNotice"></p>
     <main class="page" id="homePage">
-      <div class="page-heading"><div><div class="eyebrow">위치와 선정 이유를 한 화면에</div><h1>가까운 배출 거점,<br><em>지도에서 확인하세요.</em></h1><p>한곳에 몰기보다 가까운 여러 후보로 나누고, 주민과 수거자의 부담을 함께 살펴봅니다.</p></div><button class="ghost" data-go="analysis">A/B 배치 비교</button></div>
-      <div class="metrics"><article><span>검토할 후보</span><strong id="countCandidates">-</strong><small id="eligibleCount">안전 조건 확인</small></article><article><span>분석 대상 건물</span><strong id="countBuildings">-</strong><small>가상 건물 자료</small></article><article><span>선택안 평균 접근거리</span><strong id="averageDistance">-</strong><small>직선거리 참고값</small></article><article><span>미배정 건물</span><strong id="unassignedCount">-</strong><small>자료·거리·수용 조건 검토</small></article></div>
-      <div class="workspace">
-        <section class="panel map-panel">
-          <div class="panel-heading"><div><h2>분산 배치 지도</h2><p id="areaName">시연 권역</p></div><span class="pill muted" id="mapState">좌표 도식</span></div>
-          <div class="map-tools"><div class="segmented" id="planButtons"><button data-plan="A">A안 · 소수 거점</button><button data-plan="B" class="selected">B안 · 분산</button></div><div class="map-actions"><button class="primary" id="locateMe">내 위치</button><button class="minor" id="fitMap">시연 권역</button></div></div>
-          <div class="real-map" id="map" aria-label="후보와 건물을 표시하는 지도">
-            <svg id="fallbackMap" viewBox="0 0 880 490" role="img" aria-label="위경도 상대 위치 도식"></svg>
-          </div>
-          <div class="map-foot"><span><i class="legend-dot candidate"></i>후보 <i class="legend-dot building"></i>건물 <i class="legend-dot hold"></i>보류</span><label><input type="checkbox" id="showAssignments" checked> 제안 배정선</label></div>
-          <p class="location-status" id="locationStatus" role="status">내 위치를 누르면 위치 권한을 요청합니다. 위치는 브라우저 메모리에서만 사용합니다.</p><p class="map-note" id="mapNote">마우스로 이동·휠로 확대, 휴대폰에서는 두 손가락으로 확대할 수 있습니다. 선은 직선 연결이며 실제 보행·수거 경로가 아닙니다.</p>
-        </section>
-        <section class="panel candidate-panel" aria-labelledby="candidateHeading">
-          <div class="panel-heading"><div><h2 id="candidateHeading">후보와 선정 근거</h2><p>지점 또는 아래 후보를 선택하세요.</p></div></div>
-          <div id="candidateChoices" class="candidate-choices"></div>
-          <div id="candidateDetail" class="candidate-detail" aria-live="polite"></div>
-        </section>
-      </div>
-      <section class="panel nearby-panel" aria-labelledby="nearbyHeading">
-        <div class="panel-heading"><div><h2 id="nearbyHeading">가까운 제안 거점</h2><p>선택한 배치안에 포함된 후보만 거리순으로 봅니다. 실제 운영 장소는 아직 없습니다.</p></div><div class="nearby-actions"><button class="minor" id="useBuildingLocation">선택 건물로 시연</button><button class="minor" id="clearLocation" disabled>위치 지우기</button></div></div>
-        <p class="nearby-summary" id="nearbySummary" role="status">내 위치를 확인하거나, 선택한 시연 건물을 기준으로 살펴보세요.</p>
-        <div id="nearbyList" class="nearby-list"></div>
-        <p class="map-note">직선거리이며 보행 경로·횡단·경사는 반영하지 않습니다. 가까운 후보가 건물별 배정 장소를 대신하지 않습니다.</p>
-      </section>
-      <section class="panel citizen-panel">
-        <div class="panel-heading"><div><h2>건물에서 배출 안내까지</h2><p>준비된 건물 목록 안에서 검색합니다. 실제 전국 주소 검색 기능은 아닙니다.</p></div><span class="pill muted">시연 배정·규칙</span></div>
-        <div class="citizen-grid">
-          <div class="lookup-form">
-            <label for="buildingSearch">건물 또는 주소 검색</label><input id="buildingSearch" type="search" placeholder="예: A-01, 데모 빌라" autocomplete="off">
-            <div class="lookup-row"><select id="buildingSelect" aria-label="검색한 건물"></select><select id="categorySelect" aria-label="배출 품목"><option value="general">일반 생활폐기물</option><option value="recycle">재활용품</option><option value="battery">폐건전지</option><option value="bulky">대형폐기물</option></select></div>
-            <p class="field-help" id="buildingContext"></p>
-            <div class="lookup-row"><label class="quantity-label" for="quantity">시연 수량 <input id="quantity" type="number" min="1" max="99" value="1"></label><button class="primary" id="matchButton">배정·배출 규칙 확인</button></div>
-          </div>
-          <div><div class="result" id="matchResult" aria-live="polite"><div class="result-empty">건물을 선택하고 안내를 확인하세요.</div></div><details class="legacy-request"><summary>시연 요청 접수</summary><p>동작 연결을 위한 기록이며 실제 수거 예약이 아닙니다.</p><button class="ghost" id="requestButton" disabled>데모 요청 등록</button><span id="countRequests">0</span>건</details></div>
-        </div>
-      </section>
+      <div class="page-heading"><div><div class="eyebrow">신월1동 × 화곡1동 / 공식 자료 분석</div><h1>주거·상가·주변 시설을 함께 보고,<br><em>안전한 수거를 준비합니다.</em></h1><p>아파트 주거 배정은 제외하고 학교·의료·복합용도까지 살펴봅니다. 동 전체 권역을 나누고, 도로를 따라 거치는 순서를 계산했습니다.</p></div><button class="ghost" data-go="analysis">두 지역 분석 보기</button></div>
+      <div class="metrics"><article><span>주거·상가 수요 조사 대상</span><strong id="countBuildings">—</strong><small>필지 수 / 가구 수와 다름</small></article><article><span>아파트 포함 필지</span><strong id="countApartments">—</strong><small>주거 배정 제외 / 복합용도 별도 검토</small></article><article><span>도로 기반 조사 기준점</span><strong id="countReferences">—</strong><small>배출·정차 위치 미확정</small></article><article><span>비교하는 행정동</span><strong id="countAreas">—</strong><small>2025 SGIS 공식 경계</small></article></div>
+      <div class="workspace"><section class="panel map-panel">
+        <div class="panel-heading"><div><h2>권역을 나누고 도로를 따라 수거하기</h2><p id="areaName">공식 자료 불러오는 중</p></div><span class="pill muted" id="mapState">배경지도 연결 중</span></div>
+        <div class="area-switch" id="areaButtons" role="group" aria-label="분석 지역"><button data-area="compare">두 지역 함께</button><button data-area="sinwol">신월1동</button><button data-area="hwagok">화곡1동·까치산역</button></div>
+        <section class="address-lookup" aria-labelledby="buildingSearchLabel"><label id="buildingSearchLabel" for="buildingSearch">우리 집의 제안 수거 권역 찾기</label><input id="buildingSearch" type="search" maxlength="100" autocomplete="off" placeholder="도로명주소와 건물번호 또는 건물명을 입력하세요" aria-describedby="buildingSearchStatus"><p id="buildingSearchStatus" role="status">도로명주소·건물명·용도로 검색하세요. 위치 권한 없이 두 동의 수집 자료에서 찾습니다.</p><div id="buildingResults" class="address-results"></div><div id="homeMatch" class="home-match hidden" aria-live="polite"></div></section>
+        <div class="map-tools"><div class="map-actions"><button class="primary" id="locateMe">내 위치</button><button class="minor" id="fitMap">선택 지역 보기</button></div><div class="basemap-buttons" id="basemapButtons" role="group" aria-label="지도 배경 선택"><button class="minor selected" data-basemap="street" aria-pressed="true">일반지도</button><button class="minor" data-basemap="satellite" aria-pressed="false" disabled>위성·항공</button><button class="minor" data-basemap="hybrid" aria-pressed="false" disabled>영상+도로명</button></div><p id="basemapNote" class="basemap-note" role="status">일반지도 · 영상지도 설정 확인 중</p></div>
+        <div class="real-map" id="map" aria-label="주거·상가·주변 시설 필지와 현장 조사 기준점 지도"><svg id="fallbackMap" viewBox="0 0 880 490" role="img" aria-label="지도 연결 안내"><text x="35" y="240" fill="#52695f" font-size="20">배경지도 연결 후 실제 분석 자료를 표시합니다.</text></svg></div>
+        <div class="map-foot"><span>색 영역: 제안 조사 권역 / 갈색 번호: 방문 순서 / 화살표 점선: 도로 연결을 가정한 내부 이동</span></div>
+        <div class="map-legend" style="padding:0 23px"><span><b style="background:#187b60"></b>주거</span><span><b style="background:#287ba7"></b>상가·복합</span><span><b style="background:#8159a4"></b>교육·의료·기타 맥락</span><span><b style="background:#bf6262"></b>아파트·복합</span><span><b style="background:#c27d27"></b>조사 기준점</span></div><div class="pilot-layers"><label><input type="checkbox" id="showSectors" checked> 제안 권역</label><label><input type="checkbox" id="showRoute" checked> 방문 순서·도로 이동</label><label><input type="checkbox" id="showBuildings"> 건물 용도 점</label><label><input type="checkbox" id="showApartments"> 제외한 아파트</label><label><input type="checkbox" id="showOther"> 미연결·분류 보류</label><label><input type="checkbox" id="showRoads"> 공식 도로 선형</label><label><input type="checkbox" id="showAssignments"> 조사 기준점과의 직선 연결</label><label><input type="checkbox" id="showHistorical"> 2020 과거 권역 참고</label></div>
+        <div id="routeSummary" class="route-summary"></div><p class="location-status" id="locationStatus" role="status">위치는 브라우저에서만 사용합니다.</p><p class="map-note" id="mapNote">갈색 번호는 현장 조사 기준점입니다. 점선은 양방향 평면 도로망 가정의 경로이며 일방통행·입체교차·차량 진입 조건은 확인 전입니다. 실제 배출·정차·운행 안내가 아닙니다.</p>
+      </section><section class="panel candidate-panel"><div class="panel-heading"><div><h2>조사 구간과 근거</h2><p>건물 또는 주황색 기준점을 눌러보세요.</p></div></div><div id="candidateChoices" class="candidate-choices"></div><div id="candidateDetail" class="candidate-detail" aria-live="polite"></div></section></div>
+      <section class="panel nearby-panel"><div class="panel-heading"><div><h2>내 위치와 조사 기준점</h2><p>실제 배출장소를 추천하는 기능은 아직 아닙니다.</p></div><button class="minor" id="clearLocation" disabled>위치 지우기</button></div><p id="nearbySummary" class="nearby-summary"></p><div id="nearbyList" class="nearby-list"></div></section>
     </main>
     <main class="page hidden" id="analysisPage">
-      <div class="sectionhead"><div class="eyebrow">분석 결과를 비교합니다</div><h1>왜 이 배치일까요?</h1><p>안전 조건으로 먼저 거른 뒤, 거점 수에 따른 접근거리와 담당 부담을 비교합니다.</p></div>
-      <div class="analysis-method"><span>01 안전 검토</span><b>→</b><span>02 가용 후보 선정</span><b>→</b><span>03 건물 분산 배정</span><b>→</b><span>04 A/B안 비교</span></div>
-      <p class="analysis-note" id="analysisMethod"></p>
-      <div class="plan-cards" id="comparisonCards"></div>
-      <section class="panel"><div class="panel-heading"><div><h2>선택안의 담당 부담</h2><p>수요·수용 기준의 단위와 출처를 확인하세요. 가구 수는 실제 배출량과 다릅니다.</p></div><button class="minor" id="exportAnalysis">결과 JSON 저장</button></div><div class="tablewrap"><table><thead><tr><th>후보</th><th>담당 건물</th><th>담당 수요</th><th>수용 가정</th></tr></thead><tbody id="loadTable"></tbody></table></div></section>
-      <div class="analysis-bottom"><section class="panel"><div class="panel-heading"><h2>보류한 이유도 남깁니다</h2></div><div id="heldCandidates" class="padded-list"></div></section><section class="panel"><div class="panel-heading"><h2>자료와 계산의 한계</h2></div><div class="padded-list"><p>거리는 위경도 사이의 직선거리입니다. 도로 폭, 경사, 횡단, 실제 수거 동선은 추가 확인해야 합니다.</p><p>단순한 순차 배정 결과이며 최적해나 실제 안전 개선 효과를 보장하지 않습니다.</p><p id="unassignedNote"></p></div></section></div>
-      <section class="panel source-panel"><div class="panel-heading"><div><h2>자료 출처와 추가 조사</h2><p>공공자료 링크는 조사 참고 출처입니다. 현재 가상 수치의 근거로 사용하지 않았습니다.</p></div></div><div id="sourceList" class="source-list"></div></section>
+      <div class="sectionhead"><div class="eyebrow">실제 자료 / 동 전체 권역과 이동 비교</div><h1>신월1동과 화곡1동, 무엇이 다를까요?</h1><p>두 동 전체에서 조사점을 넓게 분산하고, 같은 점들을 방문하는 순서를 비교했습니다. 필지는 건물 동수·실거주 가구 수·쓰레기량과 다릅니다.</p></div>
+      <div class="analysis-method"><span>공식 경계</span><b>→</b><span>대장·건물 조인</span><b>→</b><span>주거·상가·시설 용도 분류</span><b>→</b><span>권역 분산·도로 방문 순서</span></div>
+      <p id="analysisMethod" class="analysis-note"></p><div class="plan-cards" id="comparisonCards"></div>
+      <section class="panel"><div class="panel-heading"><div><h2>분석을 해석하는 기준</h2><p>직선거리 감소는 수거 안전·주민 보행거리·작업시간 개선의 입증이 아닙니다. 현장 확인을 거쳐 실제 도로변 공간을 정해야 합니다.</p></div><button class="minor" id="exportAnalysis">분석 결과 저장</button></div><ul id="analysisLimits" class="padded-list"></ul></section>
+      <section class="panel source-panel"><div class="panel-heading"><div><h2>공식 출처와 기준일</h2><p>동별 가구 수나 안전 조건을 임의 생성하지 않았습니다.</p></div></div><div id="sourceList" class="source-list"></div></section>
     </main>
     <main class="page hidden" id="assistantPage">
-      <div class="sectionhead"><div class="eyebrow">품목과 질문 의도를 읽습니다</div><h1>배출 전 궁금한 것</h1><p>위치와 시간은 저장된 안내를 사용합니다. AI가 문장을 만들어 사실처럼 안내하지 않습니다.</p></div>
-      <div class="assistant-grid"><section class="panel chat-panel"><div class="panel-heading"><h2>질문하기</h2><span class="pill muted" id="aiStatus">규칙 기반 안내</span></div><div class="chats" id="chatMessages"><div class="bubble bot">일반쓰레기, 재활용품, 폐건전지, 대형폐기물을 물어보세요. 확인되지 않은 정보는 확인이 필요하다고 안내합니다.</div></div><div class="quick-prompts"><button data-prompt="일반쓰레기는 언제 버리나요?">배출 요일</button><button data-prompt="폐건전지 수거함 어디 있어?">폐건전지 위치</button><button data-prompt="의자를 버리고 싶어">의자 배출</button></div><form id="chatForm" class="chat-form"><input id="chatInput" maxlength="500" placeholder="예: 재활용품은 언제 배출하나요?" required><button class="primary" type="submit">보내기</button></form></section><section class="panel"><div class="panel-heading"><h2>답변이 만들어지는 방식</h2></div><ol class="answer-steps"><li><b>품목과 질문 의도 구분</b><p>키워드 또는 선택적으로 연결한 AI가 정해진 항목만 고릅니다.</p></li><li><b>저장된 규칙 조회</b><p>요일·시간·원문은 관리자가 저장한 안내에서 가져옵니다.</p></li><li><b>미확인은 그대로 안내</b><p>새 장소를 만들거나 제안 후보를 실제 배출장소로 확정하지 않습니다.</p></li></ol><p class="flow-note">AI가 꺼져 있거나 연결되지 않아도 기본 안내는 사용할 수 있습니다.</p></section></div>
+      <div class="sectionhead"><div class="eyebrow">관련 안내를 근거와 함께 찾습니다</div><h1>해우리 배출도우미</h1><p>품목·규격을 확인하고, 지역별 공식 안내와 수수료를 검색해 원문·확인일을 함께 보여줍니다. 지도 후보는 실제 배출 가능한 운영 장소가 아닙니다.</p><p class="flow-note">양천구 캐릭터 ‘볼빵빵 해우리’ 이름을 활용한 교육용 시제품입니다. 구청 공식 서비스가 아닙니다. <a href="https://www.kogl.or.kr/recommend/recommendDivView.do?division=img&amp;recommendIdx=139193" target="_blank" rel="noopener noreferrer">캐릭터 출처: 양천구·공공누리</a></p><p id="hubStatus" class="flow-note"></p><p id="knowledgeStatus" role="status">서버 연결 후 문서 검색을 사용할 수 있습니다.</p></div>
+      <div class="assistant-grid"><section class="panel chat-panel"><div class="pilot-chat-region"><label for="chatDistrict">배출 안내 지역</label><select id="chatDistrict"><option value="11470">양천구 · 공식 품목 DB</option><option value="11500">강서구 · 일반·재활용 안내</option></select></div><div class="panel-heading"><h2>해우리에게 물어보세요</h2><span class="pill muted" id="aiStatus">저장된 안내 사용</span></div><div class="chats" id="chatMessages" aria-live="polite" aria-relevant="additions text"><div class="bubble bot">안녕하세요! 해우리 배출도우미예요. 버릴 물건과 궁금한 점을 알려주세요. 안마의자·책상·소파 등은 공식 품목표에서 규격별 수수료와 신고 방법을 찾아드려요. 물건이 모호하면 품목·규격을 되물어요. 전국 공통 분리 방법과 두 구의 확보된 운영 규칙도 찾아드려요. 특정 수거함 좌표는 아직 준비 중이에요. 모르는 장소나 시간은 지어내지 않아요.</div></div><div class="quick-prompts"><button data-prompt="일반쓰레기는 언제 버리나요?">배출 요일</button><button data-prompt="폐건전지 수거함 어디 있어?">폐건전지 위치</button><button data-prompt="작은 가구는 비용이 얼마인가요?">작은 가구 비용</button></div><form id="chatForm" class="chat-form"><input id="chatInput" maxlength="500" placeholder="예: 재활용품은 언제 배출하나요?" required><button class="primary" type="submit">보내기</button></form></section><section class="panel"><div class="panel-heading"><h2>답변이 만들어지는 방식</h2></div><ol class="answer-steps"><li><b>품목 확인 → 공식 품목표 조회</b><p>표준 품목명과 다른 표현으로 규격별 수수료를 찾습니다. 안마의자는 일반 의자와 구분하고 규격을 임의로 선택하지 않습니다.</p></li><li><b>지역·품목·시행기간 확인</b><p>원문 확인 상태와 적용 대상을 먼저 확인합니다. 다른 지역이나 확인되지 않은 동별 규칙은 섞지 않습니다.</p></li><li><b>관련 문서와 원문 찾기</b><p>선택한 BGE-M3 임베딩 또는 키워드로 검색합니다. 안내 내용과 공식 원문 링크·확인일을 함께 보여줍니다.</p></li><li><b>미확인은 그대로 안내</b><p>새 장소를 만들거나 제안 후보를 실제 배출장소로 확정하지 않습니다.</p></li></ol><p class="flow-note">벡터 색인은 별도 실행합니다. 모델이 꺼져 있거나 연결되지 않으면 키워드 검색과 기본 안내를 사용합니다.</p></section></div>
     </main>
-    <main class="page hidden" id="architecturePage">
-      <div class="sectionhead"><div class="eyebrow">배운 기술을 작은 단위로 연결</div><h1>만드는 과정</h1><p>분석은 별도 파일로, 웹은 결과 조회와 수정으로 나누었습니다.</p></div>
-      <div class="arch-grid"><article><span>01 / ANALYSIS</span><h3>CSV 분석</h3><p>안전 조건, 거리 계산, 수용 기준과 분산 배정. A/B 비교표와 JSON 출력.</p></article><article><span>02 / SERVICE</span><h3>안내 웹</h3><p>HTML·CSS·JS와 Leaflet. 외부 지도가 없어도 좌표 도식과 목록 제공.</p></article><article><span>03 / SERVER</span><h3>조회와 정보 수정</h3><p>FastAPI·SQLite. 담당자 세션, 수정 충돌 확인, 변경 기록.</p></article></div>
-      <section class="panel appflow"><h2>분석 파일에서 웹까지</h2><p>후보·건물 CSV → Python 분석 → 결과 JSON → SQLite → 지도·배치 비교·규칙 안내</p><p>담당자 수정 → SQLite 저장 → 같은 분석 기준으로 다시 계산 → 화면에 반영</p><h2>AI는 선택 기능</h2><p>Ollama가 품목·질문 의도를 JSON으로 반환하면 허용된 값만 사용합니다. 안내 문장은 저장된 자료에서 구성합니다. LangGraph·RAG·모델 학습·영상 분석은 이번 구현에 포함하지 않았습니다.</p></section>
-    </main>
+    <main class="page hidden" id="architecturePage"><div class="sectionhead"><div class="eyebrow">분석은 별도 파일, 웹은 결과 조회</div><h1>실제 자료를 서비스로 연결합니다</h1></div><section class="panel appflow"><h2>지역 분석</h2><p>건축HUB 표제부 + VWorld 건물·도로 + SGIS 행정동 경계 → PNU 공간 조인 → 주거·상가·교육·의료·특수 용도 분류 → 동 전체 권역 분산 → 도로망 접근·권역 간 이동 비교 → 방문 순서와 권역 표시.</p><h2>배출 도우미</h2><p>양천구 공식 품목·규격·수수료 DB 조회를 우선하고, 나머지 질문은 공식 안내 요약을 검색합니다. BGE-M3 문서 검색과 선택 질문 분류를 사용하며 비용·장소를 생성하지 않습니다.</p><h2>확인할 다음 단계</h2><p>현재 수거점, 차량 제원·유효폭, 실제 정차·작업면, 보행 통로, 부지·관리 동의를 확보한 뒤 실제 배출 거점을 선정합니다.</p></section></main>
     <footer class="footer">GREEN ZONE · 위치 선정과 안내 흐름을 보여 주는 교육용 시제품</footer>
   </div>
 </div>
-<script src="demo-data.js"></script>
+
 <script src="common.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=20261018-address2"></script>
 </body>
 </html>

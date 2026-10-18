@@ -3,16 +3,11 @@ from pathlib import Path
 import argparse
 import os
 import secrets
+from backend.settings import load_local_environment
 
 ROOT = Path(__file__).resolve().parent
 os.chdir(ROOT)
-allowed = {"APP_PORT", "DEMO_DB_PATH", "GREENZONE_CATALOG_PATH", "ADMIN_USERNAME", "ADMIN_PASSWORD", "GREENZONE_AI_ENABLED", "OLLAMA_BASE_URL", "OLLAMA_MODEL", "OLLAMA_TIMEOUT_SECONDS"}
-env_file = ROOT / ".env"
-if env_file.exists():
-    for line in env_file.read_text(encoding="utf-8-sig").splitlines():
-        key, sep, value = line.strip().partition("=")
-        if sep and key in allowed:
-            os.environ.setdefault(key, value.strip().strip('"').strip("'"))
+load_local_environment(ROOT)
 
 parser = argparse.ArgumentParser(description="그린존 로컬 시제품 실행")
 parser.add_argument("--port", type=int, default=int(os.getenv("APP_PORT", "8000")))

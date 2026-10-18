@@ -1,65 +1,42 @@
-# GreenZone Preview 그린존 시제품
+# GreenZone Preview
 
-**간략한 5일 팀프로젝트 구현용 저장소**입니다. 양천구의 작은 권역을 대상으로 **후보 위치 분석 → 배치 비교 → 지도·배출 안내 → 담당자 정보 수정**을 연결합니다. 상세 조사·전체 확장 기획의 정본은 별도 GreenZone 프로젝트에서 관리합니다.
+5일 팀프로젝트용 웹 시제품. **신월1동·화곡1동 공식 자료 분석 → 동 전체 권역 지도 → 도로 방문 순서 비교 → 배출 안내**를 연결합니다.
 
-> 초기 후보·건물·가구 수·안전 조건은 모두 가상 시연 자료입니다. 지도 배경이 실제여도 표시 지점은 공식 배출장소가 아닙니다.
+기존 가상 지도·A/B 배치 시연은 2026-10-18 제거했습니다. 주황색은 실제 도로 선형을 바탕으로 한 현장 조사 기준점이며 배출·정차 장소가 아닙니다.
 
-실제 자료 준비: [직접 작성할 체크리스트 TXT](docs/그린존_직접준비_체크리스트.txt) · [공식 주소·신청 절차·입력 항목 상세](docs/DATA_PREPARATION_CHECKLIST.md)
+## 바로 보기
 
-음식물·RFID·영상 AI·실시간 운행·자동단속·치안 연계는 후속 기획이며 이번 5일 필수 구현에 추가하지 않습니다.
+- **팀원 공유:** [3쪽 화면 가이드 PDF](output/pdf/그린존_프리뷰_팀원_화면가이드.pdf) · [캡처와 설명](docs/TEAM_PREVIEW_GUIDE.md) · [Docker 실행 순서](QUICK_START_KO.md)
+- [주소·건물명에서 담당 제안 권역 찾기](docs/ADDRESS_TO_TERRITORY.md)
+- [일반지도·위성/항공사진·영상+도로명 전환](docs/MAP_IMAGERY.md)
+- [최신: 동 전체 권역 분산·도로 방문 순서](docs/COLLECTION_TERRITORIES.md)
 
-## 이번에 구현한 범위
+- [배출 정보 집약체·상가/학교 포함·품목 되묻기](docs/DISPOSAL_DATA_HUB.md)
 
-- 별도 Python/CSV 분석: 안전 조건 제외, 거리·수요·수용 기준에 따른 분산 배정, A/B 비교
-- Leaflet 지도와 후보·건물 표시, 배정선, 후보 선정 이유와 보류 사유
-- 사용자 `/`와 관리자 `/admin` 화면 분리, 지도 이동·확대 및 내 위치 확인
-- 선택한 배치안의 가까운 제안 거점 거리순 목록, 권한 실패 안내와 건물 기준 시연
-- 건물 검색과 규칙·출처 안내, 미확인 정보 구분
-- 담당자 한 계정 로그인, 후보 위치·상태·메모·규칙 수정과 SQLite 저장
-- 수정 충돌 확인과 최근 수정 기록
-- 기존 시연 요청 접수·목록
-- 선택 AI: 품목·질문 의도 JSON 분류. 위치·시간·링크는 저장된 자료에서 안내
+- [실제 두 지역 분석·수치·방법·한계](docs/REAL_AREA_ANALYSIS.md)
+- [양천구 품목 DB·ERD](docs/WASTE_DATABASE.md): 품목명 91개·규격별 수수료 268건
+- [공식 안내 문서 검색](docs/KNOWLEDGE_SEARCH.md)
+- [실행 안내](QUICK_START_KO.md) · [API 키 준비](docs/API_KEYS_AND_DATA.txt)
 
-HTML/CSS/JavaScript, FastAPI, Pydantic, SQLite를 사용합니다. React·LangGraph·RAG·영상 분석·새 모델 학습은 추가하지 않았습니다.
-
-## 빠른 실행
-
-Python 환경에 프로젝트 패키지를 준비한 뒤 실행합니다.
+## 실행
 
 ```powershell
-python -m pip install -r backend/requirements.txt
-python run_local.py
+docker compose up -d --build web
 ```
 
-주소: http://127.0.0.1:8000
+지도: http://localhost:8000/ · 도우미: http://localhost:8000/#assistant · 관리자: http://localhost:8000/admin
 
-관리자 주소: http://127.0.0.1:8000/admin · [화면별 사용법](docs/CITIZEN_AND_ADMIN.md)
+Python 실행은 `python -m pip install -r backend/requirements.txt` 후 `python run_local.py`를 사용합니다. 포트는 APP_PORT 설정을 따릅니다. HTML 파일을 직접 여는 방식의 가상 시연은 제거했으며 서버로 접속합니다.
 
-Windows에서는 START_GREENZONE.bat를 실행해도 됩니다. 관리자 암호를 따로 설정하지 않았다면 실행기가 임의 암호를 만들고 **storage/local-access.txt**에 접속정보를 기록합니다. 이 파일은 Git에서 제외되며 공유하면 안 됩니다.
+## 현재 자료와 화면
 
-화면만 볼 때에는 preview/index.html을 열 수 있습니다. 이 경우 독립 시연 자료를 사용하며 서버 수정·DB 저장은 사용할 수 없습니다.
+- SGIS 2025 공식 행정동 경계, 건축HUB 표제부, VWorld 건물·도로 자료를 공간 조인했습니다.
+- 주거·상가·교육·의료·기타·복합용도를 분류합니다. 아파트 주거 배정은 제외하며 자체 계약·실제 이용·발생량은 추가 확인합니다.
+- 동 전체에 조사점을 6개씩, 최소 250m 간격으로 배치하고 권역·방문 순서·도로 이동 시나리오를 표시합니다. 실제 일방통행·차종·정차·안전은 확인 전입니다.
+- 실제 주소·용도 검색, 지도 확대·이동·내 위치, 제외한 아파트·도로·과거 수거 참고 레이어를 지원합니다.
+- 양천구 공식 품목·규격·수수료를 우선 조회합니다. 문서 검색은 BGE-M3 또는 키워드를 사용합니다. 일반·재활용·폐전지 안내를 보강했으며 지역별 범위는 [자료 묶음 안내](docs/DISPOSAL_DATA_HUB.md)에 표시합니다.
+- 관리자 DB 수정과 분석 파일 재계산은 별도입니다. 수정한 좌표로 거리 지표를 바꾸려면 분석 결과를 다시 만들어 반영해야 합니다.
 
-## 분석을 별도로 진행
+일반지도와 기존 분석 파일로 웹 실행 시 외부 자료 키가 필요하지 않습니다. 위성·항공사진과 도로명 겹치기는 `.env`의 `VWORLD_API_KEY`를 사용합니다. 원본 재수집·분석 스크립트와 상세 CSV/보고서는 형제 GreenZone 프로젝트가 정본입니다. 외부 키·관리자 암호는 `.env`에만 보관하며 공유하지 않습니다.
 
-```powershell
-python scripts/analyze_locations.py
-```
-
-data/sample_candidates.csv와 sample_buildings.csv를 읽어 data/analysis_result.json과 비교 CSV를 만듭니다. 웹 분석과 CLI는 같은 계산 함수를 사용합니다. 실제 자료 교체·별도 DB 시작은 [구현 안내](docs/IMPLEMENTATION_GUIDE.md)를 따릅니다.
-
-## AI와 Docker는 선택
-
-기본은 GREENZONE_AI_ENABLED=0이며 모델 호출 없이 동작합니다. AI를 쓰려면 .env의 서버 주소·실제 포트·설치 모델 이름을 함께 설정합니다. 자동 설치·모델 다운로드는 수행하지 않습니다.
-
-Docker는 .env.example을 참고해 준비한 뒤 docker compose up -d --build로 실행합니다. 관리 기능을 쓰려면 ADMIN_PASSWORD를 12자 이상으로 설정합니다. 기본 지도는 별도 유료 지도 키를 사용하지 않습니다.
-
-## 문서
-
-- [구현 범위](docs/IMPLEMENTATION_SCOPE.md)
-- [실행과 실제 자료 교체](docs/IMPLEMENTATION_GUIDE.md)
-- [구조](docs/ARCHITECTURE.md)
-- [API](docs/API_CONTRACT.md)
-- [5일 역할 분담](docs/5DAY_SPRINT.md)
-- [데이터](data/README.md)
-
-이번 변경에서 pytest 추가·실행과 실제 모델 호출은 수행하지 않습니다. 기존 tests/는 이전 API 골격용 테스트이며, 실행·화면·관리 기능의 검증 범위는 작업 기록과 구분해야 합니다.
+음식물·RFID·영상 AI·실시간 운행·자동단속·치안 연계는 후속 범위입니다. 현재 서비스는 실제 신고·수거 예약·결제를 대신하지 않습니다.

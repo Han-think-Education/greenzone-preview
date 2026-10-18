@@ -1,10 +1,10 @@
 'use strict';
-const state={data:window.GREENZONE_DEMO,apiReady:false,authenticated:false,configured:false,requests:[],requestsError:''};
+const state={data:window.GREENZONE_CATALOG,apiReady:false,authenticated:false,configured:false,requests:[],requestsError:''};
 function candidateFor(id){return state.data.candidates.find(c=>c.candidate_id===id);}
 async function refreshRequests(){
   try{
     const rows=await api('/api/requests');
-    state.requests=rows.map(r=>({id:r.request_id,building_name:state.data.buildings.find(b=>b.building_id===r.building_id)?.building_name || r.building_id,category:r.category,quantity:r.quantity,status:'시연 접수(DB)'}));
+    state.requests=rows.map(r=>({id:r.request_id,building_name:state.data.buildings.find(b=>b.building_id===r.building_id)?.building_name || r.building_id,category:r.category,quantity:r.quantity,status:'내부 접수 기록'}));
     state.requestsError='';
   }catch(e){state.requestsError=e.message;}
   renderRequests();
@@ -13,7 +13,7 @@ function renderRequests() {
   $('#adminRequestCount').textContent=state.requestsError?'-':state.requests.length;
   const tbody=$('#requestsTable');tbody.replaceChildren();
   if(state.requestsError){const tr=el('tr'),td=el('td',state.requestsError);td.colSpan=5;tr.append(td);tbody.append(tr);return;}
-  if(!state.requests.length){const tr=el('tr'),td=el('td','아직 접수된 시연 요청이 없습니다.');td.colSpan=5;tr.append(td);tbody.append(tr);return;}
+  if(!state.requests.length){const tr=el('tr'),td=el('td','아직 접수 연계 기록이 없습니다.');td.colSpan=5;tr.append(td);tbody.append(tr);return;}
   state.requests.forEach(r=>{const tr=el('tr');[r.id,r.building_name,labels[r.category] || r.category,r.quantity,r.status].forEach(v=>tr.append(el('td',v)));tbody.append(tr);});
 }
 function renderAuth() {
@@ -66,7 +66,7 @@ async function loadHistory() {
 }
 async function saveEditor(url,payload,messageId,form) {
   const button=form.querySelector('button[type=submit]');button.disabled=true;$(messageId).textContent='저장 중...';
-  try{await api(url,jsonOptions('PATCH',payload));await refreshCatalog();await loadHistory();$(messageId).textContent='저장했습니다. 지도·배치 비교에도 반영됩니다.';}
+  try{await api(url,jsonOptions('PATCH',payload));await refreshCatalog();await loadHistory();$(messageId).textContent='저장했습니다. 별도 분석 결과는 다시 분석·반영한 뒤 갱신됩니다.';}
   catch(e){$(messageId).textContent=e.message;if(e.status===401){state.authenticated=false;renderAuth();}if(e.status===409)await refreshCatalog();}
   finally{button.disabled=false;}
 }

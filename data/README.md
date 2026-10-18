@@ -1,23 +1,13 @@
-# 분석 자료와 웹 입력
+# 현재 실행 자료
 
-현재 샘플은 모두 가상입니다. 양천구 지도 배경 위의 실제 위치로 이용하면 안 됩니다.
+- `pilot_analysis.json`: 신월1동·화곡1동의 공식 자료 공간 조인·비교 결과. 경계·필지·도로·현장 조사 기준점.
+- `analysis_result.json`: 실제 대상 필지와 조사 기준점을 SQLite에 등록하는 카탈로그. 기준점 안전 상태는 unknown, 수용량은 null.
+- `waste_catalog.json`: 양천구 공식 대형폐기물 품목명 91개·규격별 수수료 268건.
+- `waste_schema.sql`: 품목 검색 추가 테이블.
+- `knowledge_documents.json`: 양천구·강서구·전국 공통의 확보된 공식 안내를 요약한 19개 문단.
 
-- sample_candidates.csv: 후보 좌표·수용 가정·안전 조건·검토 상태·출처
-- sample_buildings.csv: 건물 좌표·가상 수요·단위·출처
-- catalog_metadata.json: 권역·A/B 후보 조합·규칙·출처
-- analysis_result.json: 위 파일의 분석 결과와 웹 초기 입력
-- analysis_result.comparison.csv: A/B 비교표
+기존 가상 CSV·가상 메타정보·데모 지도 스냅샷은 제거했습니다. 복구용 보관본은 상세 프로젝트 `GreenZone/research/retired_demo_20261018`에 있습니다.
 
-```powershell
-python scripts/analyze_locations.py
-```
+[실제 지역 분석 설명](../docs/REAL_AREA_ANALYSIS.md) · [품목 DB 설명](../docs/WASTE_DATABASE.md).
 
-독립 프리뷰의 시연 스냅샷까지 갱신하려면 --preview-snapshot을 명시합니다. 실제 자료로 자동 덮어쓰지 않도록 별도 출력 파일을 권장합니다.
-
-scripts/prepare_demo_data.py는 초기 가상 자료를 생성한 도구입니다. 실제 입력 자료를 이 스크립트로 덮어쓰지 마세요.
-
-## 안전과 수요
-
-안전 상태는 pass/fail/unknown이며 미확인·부적합·보류 후보는 배정하지 않습니다. 수요와 수용 기준 단위가 같아야 합니다. 가구 수를 무게로 간주하지 않습니다.
-
-실제 자료에는 is_demo=0, source_id, checked_at을 적고 메타정보 출처 대장에 근거를 등록합니다. 실제 경계·좌표·보행·진입·정차를 확인해야 하며 과거 수거표는 현재 GPS 동선이 아닙니다.
+동 전체 권역·기준점 개수·거리 계산은 분석 매개변수이며 실제 배출 장소 지정·작업 안전·보행 거리·수거 시간 개선을 입증한 결과가 아닙니다.

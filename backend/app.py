@@ -1,15 +1,16 @@
-"""5-day MVP FastAPI scaffold. 모든 건물·시설 데이터는 시연용 가상 데이터."""
+"""공식 품목 DB·실제 지역 사전 분석 조회. 운영 배출 지점은 현장 확인 전."""
 from __future__ import annotations
 
 import os
 import json
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Request, Response, Depends
+from fastapi import FastAPI, HTTPException, Request, Response, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -18,6 +19,9 @@ from pydantic import BaseModel, Field, ConfigDict
 from backend.chat_service import CATEGORY_GUIDES, identify_category, identify_topic, parse_ai_intent, ollama_status, query_ollama
 from backend.catalog import add_tables, read_catalog, now_iso
 from backend import auth
+from backend import knowledge
+from backend import waste_catalog
+from backend.map_tiles import router as map_router
 
 ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = Path(os.getenv("DEMO_DB_PATH", str(Path(__file__).with_name("demo.db"))))
@@ -75,10 +79,20 @@ def bootstrap() -> None:
                  for z in "ABC" for i in range(1, 9)]
             )
         add_tables(db, CATALOG_PATH)
+        knowledge.create_tables(db)
+        waste_catalog.create_tables(db)
+        waste_catalog.sync_catalog(db)
+        # 원문 요약 파일 등록만 수행한다. 웹 시작 시 모델을 호출하지 않는다.
+        try:
+            knowledge.sync_documents(db)
+        except (OSError, ValueError, KeyError, TypeError):
+            # 잘못된 새 파일이 기존 유효 문서나 거점 자료를 지우지 않게 한다.
+            pass
 
 
 bootstrap()
-app = FastAPI(title="GreenZone Preview API — 교육용 프로젝트", version="0.4.0")
+app = FastAPI(title="GreenZone Preview API — 교육용 프로젝트", version="0.7.0")
+app.include_router(map_router)
 app.add_middleware(CORSMiddleware, allow_origins=["http://127.0.0.1:5500", "http://localhost:5500"],
                    allow_methods=["GET", "POST"], allow_headers=["*"])
 
@@ -148,9 +162,14 @@ def analysis():
     return read_catalog(connection)["analysis"]
 
 
+@app.get("/api/pilot-analysis")
+def pilot_analysis():
+    return json.loads((ROOT / 'data/pilot_analysis.json').read_text(encoding='utf-8'))
+
+
 @app.get("/api/config")
 def configuration():
-    return {"admin_configured": auth.configured(), "ai_enabled": os.getenv("GREENZONE_AI_ENABLED", "0") == "1", "version": "0.4.0"}
+    return {"admin_configured": auth.configured(), "ai_enabled": os.getenv("GREENZONE_AI_ENABLED", "0") == "1", "version": "0.7.0"}
 
 
 def match_logic(payload: MatchInput) -> dict:
@@ -206,9 +225,19 @@ def create_request(payload: RequestInput):
     return {"request_id": request_id, "status": "demo_only", "message": "시연용 요청입니다. 실제 수거 예약이 아닙니다."}
 
 
+class ChatContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    district_code: str = Field(pattern=r"^[0-9]{5}$")
+    item_id: str | None = Field(default=None, max_length=80)
+    pending: Literal['item', 'specification']
+
+
 class ChatInput(BaseModel):
     message: str = Field(min_length=1, max_length=500)
     building_id: str | None = Field(default=None, max_length=32)
+    district_code: str = Field(default="11470", pattern=r"^[0-9]{5}$")
+    dong: str | None = Field(default=None, max_length=40)
+    context: ChatContext | None = None
 
 
 @app.get("/api/ai/status")
@@ -216,14 +245,65 @@ async def ai_status():
     return await ollama_status()
 
 
+@app.get("/api/knowledge/status")
+def knowledge_status():
+    # 문서·색인 상태만 확인. 모델 서버로 연결 확인 요청을 보내지 않는다.
+    return knowledge.status(connection)
+
+
+@app.get('/api/data-hub/status')
+def data_hub_status():
+    return json.loads((ROOT/'data/disposal_hub_summary.json').read_text(encoding='utf-8'))
+
+
+@app.get("/api/waste-items/status")
+def waste_item_status():
+    return waste_catalog.status(connection)
+
+
+@app.get("/api/waste-items")
+def waste_item_search(q: str = Query(min_length=1, max_length=500),
+                     district_code: str = Query(default="11470", pattern=r"^[0-9]{5}$")):
+    return waste_catalog.search(connection, q, district_code)
+
+
 @app.post("/api/chat")
 async def chat(payload: ChatInput):
+    # 명시된 품목·규격·수수료는 문서 유사도보다 먼저 공식 표에서 찾는다.
+    item_answer = waste_catalog.answer(connection, payload.message, payload.district_code,
+                                       payload.context.model_dump() if payload.context else None)
+    if item_answer is not None:
+        return item_answer
+    if re.search(r'학교|상가|점포|병원|의원|어린이집|사업장', payload.message) and not re.search(r'언제|요일|시간', payload.message):
+        return {"category": None, "mode": "facility_clarification", "ai_used": False,
+                "response": "학교·상가·병원도 위치 분석에 포함해요. 다만 건물 용도만으로 공동 거점 이용을 정할 수는 없어요. 배출 지역, 버릴 물건, 현재 자체 수거시설·위탁계약 여부를 알려주세요. 배출 품목과 관리 방식을 나누어 확인해야 해요.",
+                "context": None, "suggestions": [], "citations": [], "verification_status": "needs_management_details", "is_demo": True,
+                "retrieval": {"mode": "clarification", "embedding_used": False, "answer_generated": False, "message": "시설의 참여·관리 조건 확인 필요"}}
     category = identify_category(payload.message)
+    found = await knowledge.search(connection, payload.message, payload.district_code, category, payload.dong)
+    if found["mode"] == "out_of_scope":
+        return {"category": category, "mode": "needs_clarification", "ai_used": False,
+                "response": found["message"], "verification_status": "unverified", "is_demo": True,
+                "citations": [], "retrieval": {"mode": found["mode"], "message": found["message"]}}
+    if found["citations"]:
+        first = found["citations"][0]
+        return {"category": first["category"], "mode": "knowledge_" + found["mode"], "ai_used": False,
+                "response": first["text"] + "\n※ 공식 원문을 확인해 정리한 요약입니다. 최신 원문과 적용 대상을 확인하세요. 지도 후보는 실제 배출장소로 승인된 곳이 아닙니다.",
+                "verification_status": "source_checked", "is_demo": True,
+                "citations": found["citations"],
+                "retrieval": {"mode": found["mode"], "message": found["message"],
+                              "embedding_used": found["mode"] == "embedding", "answer_generated": False}}
+    if payload.district_code != '11470' or knowledge.region_mismatch(payload.message, payload.district_code):
+        return {"category": category, "mode": "needs_local_data", "ai_used": False,
+                "response": "이 지역·질문에 맞는 확인 자료가 아직 부족해요. 양천구의 수수료나 배출 방법을 다른 지역에 적용하지 않을게요. 강서구는 일반·재활용 안내를 제공하며 대형폐기물 품목표·개별 수거함 좌표는 추가 수집이 필요해요. 지역 선택과 공식 안내를 확인해 주세요.",
+                "context": None, "citations": [], "verification_status": "unverified", "is_demo": True,
+                "retrieval": {"mode": "no_local_evidence", "embedding_used": False, "answer_generated": False, "message": "지역별 자료 부족 · 타 지역 규칙 적용 안 함"}}
     if category is None:
         return {
             "category": None, "mode": "needs_clarification", "ai_used": False,
-            "response": "품목을 판별하지 못했습니다. 일반쓰레기, 재활용품, 폐건전지, 대형폐기물 중 무엇인지 알려주세요.",
+            "response": "안녕하세요! 해우리 배출도우미예요. 버릴 물건과 궁금한 점을 함께 알려주세요. 예: 의자는 어떻게 버리나요? 현재는 일반쓰레기·재활용품·폐건전지·대형폐기물을 안내해요.",
             "verification_status": "unverified", "is_demo": True,
+            "citations": [], "retrieval": {"mode": found["mode"], "message": found["message"]},
         }
 
     guide = CATEGORY_GUIDES[category]
@@ -249,8 +329,9 @@ async def chat(payload: ChatInput):
         response_text += "\n안내 출처: " + rule["source_url"]
     return {
         "category": category, "mode": mode, "ai_used": ai_used, "topic": topic,
-        "response": response_text + "\n※ 시연용 서비스이며, 확인되지 않은 배출 위치를 안내하지 않습니다.",
+        "response": response_text + "\n※ 실제 신고·수거 예약을 대신하지 않으며, 확인되지 않은 배출 위치를 안내하지 않습니다.",
         "verification_status": "unverified", "is_demo": True,
+        "citations": [], "retrieval": {"mode": found["mode"], "message": "질문에 맞는 확인 자료가 부족해 기존 안내를 표시합니다. " + found["message"]},
     }
 
 

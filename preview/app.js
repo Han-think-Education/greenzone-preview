@@ -1,230 +1,221 @@
-'use strict';
-// 시연 데이터와 서버 자료를 구분하고, DOM에는 textContent로 내용을 넣습니다.
-const state = {
-  data: window.GREENZONE_DEMO || {candidates:[],buildings:[],rules:[],sources:[],analysis:{plans:[]}},
-  apiReady:false, plan:'B', candidate:null, building:null, lastResult:null,
-  requests:[], requestsError:'', matchSeq:0, matchAbort:null, requestBusy:false, chatBusy:false,
-  map:null, layer:null, locationLayer:null, position:null, locationSeq:0, locating:false, page:'home'
-};
-function activePlan() { return (state.data.analysis.plans || []).find(p => p.plan_id === state.plan); }
-function assignmentFor(id) { return (activePlan()?.assignments || []).find(a => a.building_id === id); }
-function candidateFor(id) { return state.data.candidates.find(c => c.candidate_id === id); }
-function fingerprint() { return [state.building,$('#categorySelect').value,$('#quantity').value,state.plan].join('|'); }
-function invalidateMatch(message) {
-  state.matchSeq++;
-  if (state.matchAbort) state.matchAbort.abort();
-  state.lastResult = null;
-  $('#requestButton').disabled = true;
-  $('#requestButton').textContent = '데모 요청 등록';
-  $('#matchButton').disabled = !state.building;
-  $('#matchResult').replaceChildren(el('div',message || '건물을 선택하고 안내를 확인하세요.','result-empty'));
+ 'use strict';
+const state={pilot:null,apiReady:false,chatBusy:false,chatContext:null,map:null,layer:null,locationLayer:null,position:null,locationSeq:0,locating:false,page:'home',area:'compare',selectedReference:null};
+state.basemap='street';state.mapConfig=null;state.basemapLayers=null;state.imageryLoaded=0;state.imageryErrors=0;
+const initialBasemap=new URLSearchParams(location.search).get('basemap');
+const sectorNames={residential:'주거',commercial:'상가·업무·숙박',education:'교육',medical_care:'의료·돌봄',community:'지역 시설',special:'특수·산업 시설'};
+function sectorText(counts){return Object.entries(counts||{}).map(([k,v])=>(sectorNames[k]||k)+' '+fmt(v)).join(' / ');}
+function buildingColor(p){if(p.has_apartment)return '#bf6262';if(p.classification==='context')return '#8159a4';if(p.sectors?.includes('commercial'))return '#287ba7';return p.classification==='target'?'#187b60':'#87929b';}
+const areaNames={compare:'두 지역 함께',sinwol:'신월1동',hwagok:'화곡1동'};
+const requested=new URLSearchParams(location.search).get('area');
+if(Object.hasOwn(areaNames,requested))state.area=requested;
+function areas(){return state.pilot?Object.entries(state.pilot.areas).filter(([id])=>state.area==='compare'||state.area===id).map(([,a])=>a):[];}
+function go(page,hash=true){
+  if(!['home','analysis','assistant','architecture'].includes(page))page='home';
+  state.page=page;['home','analysis','assistant','architecture'].forEach(p=>$('#'+p+'Page').classList.toggle('hidden',p!==page));
+  $$('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));
+  $('#crumb').textContent={home:'실제 자료 지도',analysis:'두 지역 분석',assistant:'해우리 배출도우미',architecture:'분석 과정'}[page];
+  if(hash)location.hash=page;
+  if(page==='home'&&state.map)setTimeout(()=>state.map.invalidateSize(),0);
 }
-function go(page, hash) {
-  if(page==='admin'){location.href='admin.html';return;}
-  if (!['home','analysis','assistant','architecture'].includes(page)) page = 'home';
-  state.page = page;
-  ['home','analysis','assistant','architecture'].forEach(p => $('#'+p+'Page').classList.toggle('hidden',p !== page));
-  $$('.nav-item').forEach(n => n.classList.toggle('active',n.dataset.page === page));
-  $('#crumb').textContent = {home:'거점 지도',analysis:'배치 비교',assistant:'배출 도우미',admin:'정보 관리',architecture:'만드는 과정'}[page];
-  if (hash !== false && location.hash !== '#'+page) location.hash = page;
-  if (page === 'home' && state.map) setTimeout(() => state.map.invalidateSize(),0);
+$$('[data-page]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.page)));
+$$('[data-go]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();go(b.dataset.go);}));
+window.addEventListener('hashchange',()=>go(location.hash.slice(1),false));
+function selectArea(id){
+  if(!Object.hasOwn(areaNames,id))return;
+  state.area=id;state.selectedReference=null;state.focusedBuilding=null;
+  $('#homeMatch').replaceChildren();$('#homeMatch').classList.add('hidden');
+  const url=new URL(location.href);url.searchParams.set('area',id);history.replaceState(null,'',url);
+  renderOverview();renderMap();fitMap();renderBuildingSearch();
 }
-$$('[data-page]').forEach(n => n.addEventListener('click',() => go(n.dataset.page)));
-$$('[data-go]').forEach(n => n.addEventListener('click',e => {e.preventDefault();go(n.dataset.go);}));
-window.addEventListener('hashchange',() => go(location.hash.slice(1),false));
-function setPlan(id) {
-  if (!(state.data.analysis.plans || []).some(p => p.plan_id === id)) return;
-  state.plan = id; invalidateMatch('배치안이 바뀌었습니다. 배출 안내를 다시 확인해 주세요.'); renderOverview();
-}
-$('#planButtons').addEventListener('click',e => {const b=e.target.closest('[data-plan]');if(b)setPlan(b.dataset.plan);});
-function chooseCandidate(id) {
-  state.candidate = id; renderCandidate(); renderMap();
-}
-function renderOverview() {
-  const plan = activePlan(), m = plan?.metrics;
-  const allDemo=state.data.candidates.every(c=>c.is_demo) && state.data.buildings.every(b=>b.is_demo);
-  $('#datasetBadge').textContent=allDemo?'가상 자료 · 실제 배출 금지':'자료 기반 제안 · 운영 승인 별도';
-  $('#scopeBanner').textContent=allDemo?'후보·건물·가구 수·안전 조건은 모두 시연용 가정입니다. 지도 배경은 실제 지리정보이지만, 표시한 지점은 공식 배출장소가 아닙니다.':'자료 기반 제안과 시연 자료는 후보별 출처·상태를 확인하세요. 기관·주민·부지 확인 전 실제 배출 가능 장소로 안내하지 않습니다.';
-  $('#countCandidates').textContent = state.data.candidates.length;
-  const eligible = state.data.candidates.filter(c => c.eligibility?.eligible).length;
-  $('#eligibleCount').textContent = (allDemo?'시연 조건 통과 ':'입력 조건 통과 ')+eligible+'곳 · 운영 확인 별도';
-  $('#countBuildings').nextElementSibling.textContent=allDemo?'가상 건물 자료':'등록된 분석 대상 건물';
-  $('#countBuildings').textContent = state.data.buildings.length;
-  $('#averageDistance').textContent = fmt(m?.average_distance_m,'m');
-  $('#unassignedCount').textContent = m ? m.unassigned_buildings : '-';
-  $('#areaName').textContent = state.data.study_area?.name || '분석 권역';
-  $('#analysisMethod').textContent = state.data.analysis.error || state.data.analysis.method || '분석 자료 확인 필요';
-  $$('#planButtons button').forEach(b => b.classList.toggle('selected',b.dataset.plan === state.plan));
-  if (!candidateFor(state.candidate)) state.candidate = state.data.candidates[0]?.candidate_id || null;
-  renderCandidate(); renderComparison(); renderSources(); renderMap(); renderNearby();
-}
-function renderCandidate() {
-  const choices = $('#candidateChoices'); choices.replaceChildren();
-  state.data.candidates.forEach(c => {
-    const b = el('button',c.candidate_id.replace('GZ-','')+' '+(reviewLabels[c.review_status] || '검토'), 'candidate-choice');
-    b.classList.toggle('selected',state.candidate === c.candidate_id);
-    b.classList.toggle('is-held',!c.eligibility?.eligible);
-    b.addEventListener('click',() => chooseCandidate(c.candidate_id)); choices.append(b);
+$('#areaButtons').addEventListener('click',e=>{const b=e.target.closest('[data-area]');if(b)selectArea(b.dataset.area);});
+function renderOverview(){
+  if(!state.pilot)return;
+  const rows=areas().map(a=>a.summary),sum=k=>rows.reduce((n,r)=>n+r[k],0);
+  $('#countBuildings').textContent=fmt(sum('target_parcels'));
+  $('#countApartments').textContent=fmt(sum('excluded_apartment_parcels'));
+  $('#countReferences').textContent=fmt(sum('survey_reference_count'));
+  $('#countAreas').textContent=fmt(rows.length);
+  $('#areaName').textContent=rows.map(r=>r.name).join(' · ')+' / 동 전체 권역·도로 이동 시나리오';
+  $$('#areaButtons button').forEach(b=>{b.classList.toggle('selected',b.dataset.area===state.area);b.setAttribute('aria-pressed',String(b.dataset.area===state.area));});
+  $('#candidateChoices').replaceChildren();
+  areas().forEach(a=>[...a.survey_references].sort((p,q)=>p.visit_order-q.visit_order).forEach(p=>{const b=el('button',a.summary.name+' 방문 '+p.visit_order+' / '+p.sector_number+'권역','candidate-choice');b.style.borderColor=p.color;b.addEventListener('click',()=>showReference(p));$('#candidateChoices').append(b);}));
+  const routes=$('#routeSummary');routes.replaceChildren();areas().forEach(a=>{
+    const r=a.collection_route,s=a.summary,card=el('article');
+    card.append(el('strong',s.name+' · '+s.survey_reference_count+'권역 / 내부 이동 '+fmt(Math.round(r.distance_m),'m')),
+      el('p','방문 순서: '+r.order.map(id=>a.survey_references.find(p=>p.reference_id===id)?.sector_number+'권역').join(' → ')),
+      el('small','동일 거점 북→남 순 '+fmt(Math.round(r.baseline_north_to_south_distance_m),'m')+' 대비 '+r.ordering_reduction_pct+'% 짧은 순서 · 차고지·처리장 제외'));
+    routes.append(card);
   });
-  const box = $('#candidateDetail'); box.replaceChildren();
-  const c = candidateFor(state.candidate); if (!c) {box.append(el('p','후보 자료가 없습니다.'));return;}
-  box.append(el('div',c.is_demo ? '가상 위치 · 실제 배출 금지' : '자료 기반 제안 · 운영 승인 별도','detail-kicker'));
-  box.append(el('h3',c.name));
-  box.append(el('p',c.rationale || '선정 근거를 입력해 주세요.','candidate-reason'));
-  const checks = el('div',null,'safety-tags');
-  Object.entries(safetyLabels).forEach(([key,label]) => {
-    const value = c[key] || 'unknown';
-    checks.append(el('span',label+' · '+(value==='pass'?(c.is_demo?'가정 충족':'검토 적합'):value==='fail'?'부적합':'미확인'),'safety-tag '+value));
+  renderReferenceEmpty();renderComparison();renderNearby();
+}
+function renderReferenceEmpty(){
+  const box=$('#candidateDetail');box.replaceChildren();
+  box.append(el('div','실제 자료 기반 · 현장 확인 전','detail-kicker'),el('h3','주황색 조사 기준점을 눌러보세요'));
+  box.append(el('p','동 전체를 6개 조사 권역으로 나누고 점 사이 최소 250m를 두었습니다. 색칠한 권역이나 번호를 누르면 담당 필지와 방문 순서를 볼 수 있습니다. 갈색 점은 수거차가 거쳐 갈 조사 기준점입니다.','candidate-reason'));
+  box.append(el('p','점선은 공식 도로 선형으로 계산한 이동 시나리오입니다. 양방향 평면 연결을 가정하며 실제 일방통행·차량 진입 조건은 확인 전입니다.','detail-note'));
+  box.append(el('p','이 점은 현장에서 도로변 공간을 확인할 기준입니다. 도로 중앙에 쓰레기를 배출하거나 차량을 정차하라는 뜻이 아닙니다.','detail-note'));
+}
+function showReference(p){
+  state.selectedReference=p.reference_id;state.focusedBuilding=null;
+  $('#homeMatch').replaceChildren();$('#homeMatch').classList.add('hidden');
+  const box=$('#candidateDetail');box.replaceChildren();box.append(el('div','현장 조사 기준점 · 배출 금지','detail-kicker'),el('h3',p.name));
+  box.append(el('p','방문 '+p.visit_order+'번째 / '+p.sector_number+'권역\n권역 조사 대상: '+p.nearby_target_parcels+'필지\n기준 도로: '+p.road_name,'candidate-reason'));
+  box.append(el('p','도로 접근 대용거리 평균 '+p.approach_mean_m+'m / 90백분위 '+p.approach_p90_m+'m. 실제 보행망 거리는 아닙니다.','detail-meta'));
+  box.append(el('p',p.safety_note,'detail-note'));
+  box.append(el('p','주변 '+p.context_radius_m+'m 용도(중복 집계): '+sectorText(p.nearby_sector_counts),'detail-meta'),el('p',p.context_review,'detail-meta'));
+  const tags=el('div',null,'safety-tags');['차량 진입','정차·작업면','보행 통로','부지·관리 동의'].forEach(t=>tags.append(el('span',t+' 미확인','safety-tag unknown')));box.append(tags);
+  box.append(el('p','건축물대장·SGIS 경계·VWorld 건물 및 도로 자료 / 취득 2026-10-18','detail-meta'));
+  renderMap();
+}
+function showBuilding(p){
+  const a=state.pilot.areas[p.area_id];
+  const assignment=a?.survey_assignments.find(r=>r.building_id===p.building_id);
+  const reference=assignment&&a.survey_references.find(r=>r.reference_id===assignment.reference_id);
+  state.focusedBuilding=p.building_id;state.selectedReference=reference?.reference_id||null;
+  const box=$('#candidateDetail');box.replaceChildren();box.append(el('div','공식 도형·대장 조인 / 배출 위치 아님','detail-kicker'),el('h3',p.address));
+  const role=p.classification==='target'?'비아파트 주거·상가의 수요 조사 대상입니다. 실제 이용·배출량·위탁계약을 확인하기 전입니다.':p.classification==='excluded_apartment'?'아파트 주거 수요는 자체 관리 확인 대상으로 배정에서 제외합니다.':p.classification==='context'?'교육·의료·기타 시설 또는 아파트 복합용도입니다. 주변 동선·관리 맥락에 포함하며 공공 거점 참여는 별도 확인합니다.':'대장 미연결·용도 분류 보류 필지입니다.';
+  box.append(el('p',p.housing_use,'candidate-reason'),el('p',(p.sectors||[]).map(k=>sectorNames[k]).join(' · ')+(p.mixed_use?' / 복합용도':''),'detail-meta'),el('p',role,'detail-note'));
+  if(p.building_names?.length)box.append(el('p',p.building_names.join(' / '),'detail-meta'));
+  renderHomeMatch(p,a,assignment,reference);
+  if(reference){
+    box.append(el('h3','이 주소의 담당 제안: '+reference.sector_number+'권역'),
+      el('p',reference.name+' · 수거차 방문 순서 '+reference.visit_order+'번째','candidate-reason'),
+      el('p','직선 약 '+fmt(Math.round(assignment.straight_distance_m),'m')+' / 도로 접근 대용거리 약 '+fmt(Math.round(assignment.road_proxy_distance_m),'m')+'. 실제 보행 경로·소요시간이 아닙니다.','detail-meta'),
+      el('p','이미 계산한 필지별 권역 배정을 조회했습니다. 단순히 가장 가까운 점으로 새로 배정하지 않습니다. 제안 조사점은 운영 배출장소가 아니며 배출 시간·허용 품목도 아직 확정되지 않았습니다.','detail-note'));
+  }
+  box.append(el('p','1필지 안에 건물 도형 '+p.footprint_count+'개 / 연결 대장 '+p.title_record_count+'건. 필지 수는 가구 수나 쓰레기량이 아닙니다.','detail-meta'),el('p',p.management_status,'detail-meta'));
+  renderMap();
+}
+function renderHomeMatch(p,a,assignment,reference){
+  const box=$('#homeMatch');box.replaceChildren();box.classList.remove('hidden');
+  box.append(el('strong',(p.building_names?.join(' / ')||'선택한 건물')+' · '+p.address));
+  if(reference){
+    box.append(el('p',(a?.summary.name||'')+' '+reference.sector_number+'권역 제안 · 방문 '+reference.visit_order+'번째 · 직선 약 '+fmt(Math.round(assignment.straight_distance_m),'m')),
+      el('small','파란 집 표시 → 테두리가 강조된 조사점. 연결선은 위치 비교용 직선이며 실제 보행 경로가 아닙니다. 운영 배출장소는 아직 미확정입니다.'));
+  }else{
+    const reason=p.classification==='excluded_apartment'?'아파트 주거는 자체 관리 대상으로 제안 배정에서 제외했습니다.':p.classification==='context'?'학교·사업장 등 별도 참여 검토 대상입니다.':p.classification==='held'?'용도·대장 연결 확인이 필요한 필지입니다.':'도로 접근 분석의 배정 결과가 없는 필지입니다.';
+    box.append(el('p','담당 제안 권역 없음 · '+reason),el('small','가까운 점을 임의로 배출장소로 지정하지 않습니다.'));
+  }
+  const clear=el('button','선택 해제','minor');clear.type='button';clear.addEventListener('click',()=>{state.focusedBuilding=null;state.selectedReference=null;box.replaceChildren();box.classList.add('hidden');renderReferenceEmpty();renderMap();renderBuildingSearch();});box.append(clear);
+}
+function focusBuilding(p){
+  if(state.area!=='compare'&&state.area!==p.area_id)selectArea(p.area_id);
+  showBuilding(p);
+  $('#buildingSearch').value='';$('#buildingResults').replaceChildren();$('#buildingSearchStatus').textContent='선택한 주소를 지도에 표시했어요. 다른 주소도 새로 검색할 수 있습니다.';
+  if(!state.map)return;
+  const a=state.pilot.areas[p.area_id],r=a.survey_assignments.find(r=>r.building_id===p.building_id),ref=r&&a.survey_references.find(v=>v.reference_id===r.reference_id);
+  if(ref)state.map.fitBounds([[p.lat,p.lon],[ref.lat,ref.lon]],{padding:[65,65],maxZoom:18});
+  else state.map.setView([p.lat,p.lon],18);
+}
+function renderComparison(){
+  const target=$('#comparisonCards');target.replaceChildren();
+  Object.entries(state.pilot.areas).forEach(([id,a])=>{
+    const s=a.summary,card=el('article',null,'plan-card');card.append(el('div','공식 자료 공간 분석','eyebrow'),el('h2',s.name));
+    const dl=el('dl',null,'plan-stats');
+    [['경계 면적',s.boundary_area_km2+'㎢'],['분석 지도 필지',fmt(s.mapped_parcels,'필지')],['대장 연결률',s.title_link_rate_pct+'%'],['주거·상가 수요 조사 대상',fmt(s.target_parcels,'필지')],['아파트 주거 배정 제외',fmt(s.excluded_apartment_parcels,'필지')],['주변 맥락·참여 검토',fmt(s.context_parcels,'필지')],['용도별 집계(중복)',sectorText(s.sector_counts)],['최소 점 간격(이전)',s.previous_reference_min_spacing_m+'m'],['최소 점 간격(현재)',s.reference_min_spacing_m+'m'],['조사 권역',s.survey_reference_count+'개'],['도로 모델 미배정',s.unassigned_survey_parcels+'필지'],['권역당 조사 대상',s.sector_parcel_min+'~'+s.sector_parcel_max+'필지'],['도로 접근 대용거리 평균',s.road_proxy_mean_m+'m'],['도로 접근 대용거리 90백분위',s.road_proxy_p90_m+'m'],['동일 거점 북→남 순 내부 이동',fmt(Math.round(s.baseline_route_distance_m),'m')],['최소 순서 내부 이동',fmt(Math.round(s.internal_route_distance_m),'m')],['순서 변경에 따른 거리 차이',s.ordering_reduction_pct+'%']].forEach(([k,v])=>dl.append(el('dt',k),el('dd',v)));
+    const b=el('button','이 지역 지도 보기','ghost');b.addEventListener('click',()=>{selectArea(id);go('home');});card.append(dl,b);target.append(card);
   });
-  box.append(checks);
-  const load = activePlan()?.loads.find(l => l.candidate_id === c.candidate_id);
-  const stat = el('div',null,'candidate-stats');
-  stat.append(el('div','담당 건물 '+fmt(load?.building_count || 0,'개')));
-  stat.append(el('div','담당 수요 '+fmt(load?.demand || 0,' '+(c.capacity_unit || '단위 미확인'))));
-  box.append(stat,el('p',c.safety_note || '현장 조건 확인 필요','detail-note'));
-  if (!c.eligibility?.eligible) box.append(el('p','배정 보류: '+(c.eligibility?.reasons || []).join(', '),'hold-note'));
-  const source = state.data.sources.find(s => s.source_id === c.source_id);
-  box.append(el('p','자료: '+(source?.title || c.source_id || '미확인')+' / 기준일 '+(c.checked_at || '미확인'),'detail-meta'));
-  if (source?.url) box.append(safeLink(source.url,'근거 원문 보기'));
+  $('#analysisMethod').textContent=state.pilot.method;
+  const limits=$('#analysisLimits');limits.replaceChildren();state.pilot.limitations.forEach(t=>limits.append(el('li',t)));
+  const list=$('#sourceList');list.replaceChildren();state.pilot.sources.forEach(s=>{const row=el('article');row.append(safeLink(s.url,s.title),el('p',s.note),el('small','원본 기준: '+(s.reference_date||'발행일 미명시')+' / 취득 2026-10-18'));list.append(row);});
 }
-function renderComparison() {
-  const cards = $('#comparisonCards'); cards.replaceChildren();
-  (state.data.analysis.plans || []).forEach(plan => {
-    const card = el('article',null,'plan-card'+(plan.plan_id===state.plan?' active':''));
-    card.append(el('div',plan.plan_id+' PLAN','eyebrow'),el('h2',plan.label));
-    const m = plan.metrics, rows = el('dl',null,'plan-stats');
-    [['활용 후보',fmt(m.candidate_count,'곳')],['배정 건물',fmt(m.assigned_buildings,'개')],['평균 직선거리',fmt(m.average_distance_m,'m')],['최장 직선거리',fmt(m.max_distance_m,'m')],['미배정',fmt(m.unassigned_buildings,'개')]].forEach(([k,v]) => {rows.append(el('dt',k),el('dd',v));});
-    const b = el('button',plan.plan_id===state.plan?'현재 선택한 배치':'이 배치 보기','ghost');
-    b.addEventListener('click',() => setPlan(plan.plan_id));
-    card.append(rows,b); cards.append(card);
-  });
-  const tbody = $('#loadTable'); tbody.replaceChildren();
-  (activePlan()?.loads || []).forEach(load => {
-    const tr=el('tr'); [candidateFor(load.candidate_id)?.name || load.candidate_id,fmt(load.building_count,'개'),fmt(load.demand,' '+load.unit),fmt(load.capacity,' '+load.unit)].forEach(v=>tr.append(el('td',v)));tbody.append(tr);
-  });
-  const held=$('#heldCandidates'); held.replaceChildren();
-  state.data.candidates.filter(c=>!c.eligibility?.eligible).forEach(c=>{held.append(el('b',c.name),el('p',(c.eligibility?.reasons || []).join(', ')));});
-  if (!held.children.length) held.append(el('p','현재 입력된 조건에서는 보류된 후보가 없습니다. 현장 안전 확인은 별도입니다.'));
-  const missing=(activePlan()?.assignments || []).filter(a=>!a.candidate_id);
-  $('#unassignedNote').textContent=missing.length ? '미배정: '+missing.map(a=>a.building_id+' ('+a.reason+')').join(', ') : '현재 입력과 선택안에서는 모든 건물이 제안 배정되었습니다.';
-}
-function renderSources() {
-  const list=$('#sourceList');list.replaceChildren();
-  state.data.sources.forEach(s=>{const row=el('article');row.append(s.url?safeLink(s.url,s.title):el('b',s.title),el('p',s.note || ''),el('small','자료 기준일: '+(s.reference_date || '개별 자료 확인 필요')));list.append(row);});
-}
-// 외부 배경이 없어도 동일한 위경도와 배정 관계를 도식으로 표시합니다.
-function svgNode(tag, attrs, text) {
-  const n=document.createElementNS('http://www.w3.org/2000/svg',tag);
-  Object.entries(attrs || {}).forEach(([k,v])=>n.setAttribute(k,String(v)));
-  if(text!=null)n.textContent=text;return n;
-}
-function fallbackPosition(p) {
-  const bounds=state.data.study_area?.bounds || [[37.517,126.865],[37.525,126.877]];
-  return {x:30+(p.lon-bounds[0][1])/(bounds[1][1]-bounds[0][1])*820,y:460-(p.lat-bounds[0][0])/(bounds[1][0]-bounds[0][0])*430};
-}
-function validPosition(p) {return p && Number.isFinite(p.lat) && Number.isFinite(p.lon);}
-function straightDistance(a,b) {
-  const rad=v=>v*Math.PI/180;
-  const dlat=rad(b.lat-a.lat),dlon=rad(b.lon-a.lon);
-  const h=Math.sin(dlat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dlon/2)**2;
-  return 6371000*2*Math.atan2(Math.sqrt(h),Math.sqrt(Math.max(0,1-h)));
-}
-function displayDistance(m){return m>=1000?fmt(m/1000,'km'):fmt(Math.round(m),'m');}
-function renderNearby() {
-  const list=$('#nearbyList');list.replaceChildren();
-  $('#clearLocation').disabled=!state.position&&!state.locating;
-  if(!state.position){$('#nearbySummary').textContent='내 위치를 확인하거나, 선택한 시연 건물을 기준으로 살펴보세요.';return;}
-  const ids=new Set((activePlan()?.loads || []).map(c=>c.candidate_id));
-  const nearby=state.data.candidates.filter(c=>c.eligibility?.eligible&&validPosition(c)&&ids.has(c.candidate_id))
-    .map(c=>({candidate:c,distance:straightDistance(state.position,c)})).sort((a,b)=>a.distance-b.distance);
-  const bounds=state.data.study_area?.bounds;
-  const outside=bounds&&(state.position.lat<bounds[0][0]||state.position.lat>bounds[1][0]||state.position.lon<bounds[0][1]||state.position.lon>bounds[1][1]);
-  $('#nearbySummary').textContent=(state.position.kind==='device'?'현재 위치':'선택한 건물의 시연 위치')+' 기준 · '+state.plan+'안 후보 '+nearby.length+'곳'+(outside?' · 분석 권역 밖입니다. 현재 등록된 시연 후보까지의 거리만 표시합니다.':' · 실제 운영 장소로 확정되지 않았습니다.');
-  if(!nearby.length){list.append(el('p','선택안에 안내할 수 있는 후보가 없습니다. 배치안과 검토 조건을 확인해 주세요.'));return;}
-  nearby.forEach(({candidate:c,distance},index)=>{
-    const card=el('button',null,'nearby-card');card.type='button';
-    card.append(el('span',String(index+1).padStart(2,'0'),'nearby-rank'),el('strong',c.name),el('b',displayDistance(distance),'nearby-distance'),el('small',(c.is_demo?'가상 후보':'제안 후보')+' · 직선거리 · 지도에서 보기'));
-    card.addEventListener('click',()=>{chooseCandidate(c.candidate_id);go('home');if(state.map)state.map.setView([c.lat,c.lon],17);$('#candidateHeading').scrollIntoView({behavior:'smooth',block:'nearest'});});list.append(card);
+function renderMap(){
+  if(!state.map||!state.pilot||!window.L)return;
+  state.layer.clearLayers();
+  areas().forEach(a=>{
+    L.geoJSON(a.boundary,{style:{color:a.summary.area_id==='sinwol'?'#216eaa':'#85549d',weight:2,fillOpacity:.015}}).addTo(state.layer);
+    if($('#showSectors').checked)L.geoJSON(a.service_sectors,{style:f=>({color:f.properties.color,weight:f.properties.reference_id===state.selectedReference?3:1.4,fillColor:f.properties.color,fillOpacity:f.properties.reference_id===state.selectedReference ? 0.23 : state.basemap==='street'?0.12:0.07}),onEachFeature:(f,l)=>{l.bindTooltip(el('span',f.properties.name+' · 제안 권역'));const p=a.survey_references.find(p=>p.reference_id===f.properties.reference_id);if(p)l.on('click',()=>showReference(p));}}).addTo(state.layer);
+    if($('#showRoads').checked)L.geoJSON(a.roads,{style:{color:'#6d8592',weight:2,opacity:.5}}).addTo(state.layer);
+    L.geoJSON(a.buildings,{
+      filter:f=>f.properties.building_id===state.focusedBuilding||$('#showBuildings').checked&&(['target','context'].includes(f.properties.classification)||(f.properties.classification==='excluded_apartment'?$('#showApartments').checked:$('#showOther').checked)),
+      pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:f.properties.classification==='context'?4:3,color:'#fff',weight:.5,fillColor:buildingColor(f.properties),fillOpacity:.8}),
+      onEachFeature:(f,l)=>l.bindTooltip(el('span',f.properties.address)).on('click',()=>showBuilding(f.properties))
+    }).addTo(state.layer);
+    if($('#showRoute').checked){
+      L.geoJSON(a.collection_route.legs,{style:{color:'#fff',weight:7,opacity:.9},interactive:false}).addTo(state.layer);
+      L.geoJSON(a.collection_route.legs,{style:{color:'#495b67',weight:3.5,dashArray:'7 6',opacity:.95},onEachFeature:(f,l)=>l.bindTooltip(el('span','방문 '+f.properties.from_visit+' → '+f.properties.to_visit+' / 도로 선형 '+fmt(Math.round(f.properties.distance_m),'m')+' / 연결 가정'))}).addTo(state.layer);
+      a.collection_route.legs.features.forEach(f=>{const cs=f.geometry.coordinates,i=Math.max(1,Math.floor(cs.length/2)),p=cs[i],prev=cs[i-1];const arrow=el('span','➤','route-arrow');arrow.style.transform='rotate('+Math.atan2(-(p[1]-prev[1]),(p[0]-prev[0])*Math.cos(p[1]*Math.PI/180))*180/Math.PI+'deg)';L.marker([p[1],p[0]],{interactive:false,icon:L.divIcon({html:arrow,className:'route-arrow-icon',iconSize:[18,18],iconAnchor:[9,9]})}).addTo(state.layer);});
+    }
+    a.survey_references.forEach(p=>{const badge=el('span',String(p.visit_order),'route-stop-badge');badge.style.borderColor=p.color;L.marker([p.lat,p.lon],{icon:L.divIcon({html:badge,className:'route-stop-icon',iconSize:[30,30],iconAnchor:[15,15]})}).addTo(state.layer).bindTooltip(el('span',p.name+' / 방문 '+p.visit_order+' / 현장 확인 전')).on('click',()=>showReference(p));});
+    if($('#showAssignments').checked){
+      const ps=new Map(a.survey_references.map(p=>[p.reference_id,p]));const bs=new Map(a.buildings.features.map(f=>[f.properties.building_id,f.properties]));
+      a.survey_assignments.forEach(r=>{const p=ps.get(r.reference_id),b=bs.get(r.building_id);if(p&&b)L.polyline([[b.lat,b.lon],[p.lat,p.lon]],{color:p.color,weight:1,opacity:.25,dashArray:'3 5',interactive:false}).addTo(state.layer);});
+    }
+    if($('#showHistorical').checked)L.geoJSON(a.historical,{pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:7,color:'#49596d',weight:2,fillOpacity:.12}),onEachFeature:(f,l)=>l.bindTooltip(el('span',f.properties.text+' / '+f.properties.interval+' / '+f.properties.status))}).addTo(state.layer);
+    const home=a.buildings.features.find(f=>f.properties.building_id===state.focusedBuilding)?.properties;
+    if(home){
+      const assignment=a.survey_assignments.find(r=>r.building_id===home.building_id),ref=assignment&&a.survey_references.find(p=>p.reference_id===assignment.reference_id);
+      if(ref){
+        L.polyline([[home.lat,home.lon],[ref.lat,ref.lon]],{color:'#226bc2',weight:3,dashArray:'3 7',interactive:false}).addTo(state.layer);
+        L.circleMarker([ref.lat,ref.lon],{radius:22,color:'#226bc2',weight:3,fill:false,interactive:false}).addTo(state.layer);
+      }
+      const badge=el('span','집','home-pin-badge');
+      L.marker([home.lat,home.lon],{zIndexOffset:800,icon:L.divIcon({html:badge,className:'home-pin-icon',iconSize:[30,34],iconAnchor:[15,34]})}).addTo(state.layer).bindTooltip(el('span',(home.building_names?.join(' / ')||'선택한 건물')+' · '+home.address));
+    }
   });
 }
-function renderPosition() {
-  if(!state.map||!state.locationLayer)return;
-  state.locationLayer.clearLayers();if(!state.position)return;
-  const p=state.position;
-  if(p.kind==='device'&&Number.isFinite(p.accuracy))L.circle([p.lat,p.lon],{radius:p.accuracy,color:'#347bc1',weight:1,fillOpacity:.08,interactive:false}).addTo(state.locationLayer);
-  L.circleMarker([p.lat,p.lon],{radius:8,color:'#fff',weight:3,fillColor:p.kind==='device'?'#2879c6':'#d37b35',fillOpacity:1}).addTo(state.locationLayer).bindTooltip(el('span',p.kind==='device'?'내 위치':'시연 건물 기준점'));
+function fitMap(){if(state.map&&state.pilot){const bounds=L.latLngBounds([]);areas().forEach(a=>bounds.extend(L.geoJSON(a.boundary).getBounds()));if(bounds.isValid())state.map.fitBounds(bounds,{padding:[20,20]});}}
+$('#fitMap').addEventListener('click',fitMap);
+['showSectors','showRoute','showBuildings','showApartments','showOther','showRoads','showAssignments','showHistorical'].forEach(id=>$('#'+id).addEventListener('change',renderMap));
+function renderBuildingSearch(){
+  const q=$('#buildingSearch').value.trim(),list=$('#buildingResults');list.replaceChildren();if(q.length<2||!state.pilot){$('#buildingSearchStatus').textContent='도로명주소·건물명·용도로 검색하세요. 위치 권한 없이 두 동의 수집 자료에서 찾습니다.';return;}
+  const normalize=s=>String(s||'').normalize('NFKC').toLowerCase().replace(/[\s(),·]/g,'');
+  const parts=q.split(/\s+/).filter(Boolean).map(normalize),compact=normalize(q);
+  const rows=Object.values(state.pilot.areas).flatMap(a=>a.buildings.features).map(f=>{
+    const p=f.properties,fields=[p.address,p.housing_use,...(p.building_names||[]),...(p.sectors||[]).map(k=>sectorNames[k])].map(normalize);
+    const joined=fields.join('|');
+    return {p,match:joined.includes(compact)||parts.every(t=>joined.includes(t)),rank:fields.some(t=>t===compact)?0:fields.some(t=>t.includes(compact))?1:2};
+  }).filter(r=>r.match).sort((a,b)=>a.rank-b.rank||a.p.address.localeCompare(b.p.address,'ko'));
+  $('#buildingSearchStatus').textContent='두 동 전체에서 '+fmt(rows.length)+'건'+(rows.length>8?' · 우선 8건 표시. 건물번호나 이름을 더 입력하세요.':'')+' · 주소를 선택하면 담당 제안 권역을 표시합니다.';
+  rows.slice(0,8).forEach(({p})=>{
+    const a=state.pilot.areas[p.area_id],r=a.survey_assignments.find(r=>r.building_id===p.building_id),ref=r&&a.survey_references.find(v=>v.reference_id===r.reference_id);
+    const b=el('button',null,'nearby-card address-result');b.type='button';
+    b.append(el('strong',p.building_names?.join(' / ')||p.housing_use),el('span',p.address),el('small',a.summary.name+' · '+(ref?ref.sector_number+'권역 제안':'별도 검토 · 제안 배정 없음')));
+    b.addEventListener('click',()=>focusBuilding(p));list.append(b);
+  });
+  if(!rows.length)list.append(el('p','수집된 두 동의 자료에서 찾지 못했어요. 도로명 철자·건물번호를 확인하거나 건물명만 입력해 보세요. 미수집 건물은 임의로 위치를 만들지 않습니다.'));
 }
-function usePosition(point){
-  state.position=point;renderPosition();renderNearby();
-  if(state.map)state.map.setView([point.lat,point.lon],16);
+$('#buildingSearch').addEventListener('input',renderBuildingSearch);
+function distance(a,b){const rad=v=>v*Math.PI/180,dlat=rad(a.lat-b.lat),dlon=rad(a.lon-b.lon),h=Math.sin(dlat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dlon/2)**2;return 6371000*2*Math.atan2(Math.sqrt(h),Math.sqrt(Math.max(0,1-h)));}
+function renderNearby(){
+  const box=$('#nearbyList');box.replaceChildren();$('#clearLocation').disabled=!state.position&&!state.locating;
+  if(!state.position){$('#nearbySummary').textContent='내 위치를 누르면 가까운 조사 기준점까지 직선거리를 볼 수 있습니다. 실제 배출장소 추천이 아닙니다.';return;}
+  $('#nearbySummary').textContent='현재 위치 기준 · 직선거리 · 현장 조사 기준점이며 실제 배출 불가';
+  areas().flatMap(a=>a.survey_references).map(p=>({p,d:distance(state.position,p)})).sort((a,b)=>a.d-b.d).slice(0,3).forEach(({p,d})=>{const b=el('button',p.name+' / '+fmt(Math.round(d),'m'),'nearby-card');b.addEventListener('click',()=>{showReference(p);if(state.map)state.map.setView([p.lat,p.lon],17);});box.append(b);});
+}
+function renderPosition(){
+  if(!state.map||!state.locationLayer)return;state.locationLayer.clearLayers();if(!state.position)return;
+  const p=state.position;L.circle([p.lat,p.lon],{radius:p.accuracy,color:'#2879c6',weight:1,fillOpacity:.05}).addTo(state.locationLayer);
+  L.circleMarker([p.lat,p.lon],{radius:7,color:'#fff',weight:2,fillColor:'#2879c6',fillOpacity:1}).addTo(state.locationLayer).bindTooltip('내 위치');
 }
 $('#locateMe').addEventListener('click',()=>{
   if(state.locating)return;
-  if(!window.isSecureContext||!navigator.geolocation){$('#locationStatus').textContent='이 환경에서는 위치 확인을 사용할 수 없습니다. HTTPS 또는 localhost에서 열거나 선택 건물로 시연해 주세요.';return;}
-  const seq=++state.locationSeq;state.locating=true;$('#locateMe').disabled=true;$('#clearLocation').disabled=false;
-  $('#locationStatus').textContent='브라우저 위치 권한을 확인하고 있습니다…';
+  if(!window.isSecureContext||!navigator.geolocation){$('#locationStatus').textContent='위치 확인은 localhost 또는 HTTPS와 위치 권한이 필요합니다.';return;}
+  const seq=++state.locationSeq;state.locating=true;$('#locateMe').disabled=true;$('#clearLocation').disabled=false;$('#locationStatus').textContent='위치 권한을 확인하고 있습니다.';
   navigator.geolocation.getCurrentPosition(result=>{
-    if(seq!==state.locationSeq)return;
-    state.locating=false;$('#locateMe').disabled=false;
-    const {latitude:lat,longitude:lon,accuracy}=result.coords;
-    if(!validPosition({lat,lon})){renderNearby();$('#locationStatus').textContent='위치 정보를 읽지 못했습니다. 다시 시도해 주세요.';return;}
-    usePosition({lat,lon,accuracy,kind:'device'});
-    $('#locationStatus').textContent='내 위치 확인 · 오차 약 '+displayDistance(accuracy)+' · 이 페이지에서만 사용하며 서버에 저장하지 않습니다.';
-  },error=>{
-    if(seq!==state.locationSeq)return;
-    state.locating=false;$('#locateMe').disabled=false;renderNearby();
-    $('#locationStatus').textContent=({1:'위치 권한이 허용되지 않았습니다. 브라우저 설정에서 허용하거나 선택 건물로 시연해 주세요.',2:'현재 위치를 확인할 수 없습니다. 선택 건물로 시연하거나 다시 시도해 주세요.',3:'위치 확인 시간이 초과되었습니다. 다시 시도해 주세요.'})[error.code]||'위치를 확인하지 못했습니다.';
-  },{enableHighAccuracy:true,timeout:12000,maximumAge:30000});
+    if(seq!==state.locationSeq)return;state.locating=false;$('#locateMe').disabled=false;
+    const {latitude:lat,longitude:lon,accuracy}=result.coords;if(![lat,lon,accuracy].every(Number.isFinite))return;
+    state.position={lat,lon,accuracy};renderPosition();renderNearby();if(state.map)state.map.setView([lat,lon],16);
+    $('#locationStatus').textContent='내 위치 확인 / 오차 약 '+fmt(Math.round(accuracy),'m')+' / 이 페이지에서만 사용하며 저장하지 않습니다.';
+  },()=>{if(seq!==state.locationSeq)return;state.locating=false;$('#locateMe').disabled=false;$('#locationStatus').textContent='위치를 확인하지 못했습니다. 권한·연결 상태를 확인해 주세요.';renderNearby();},{enableHighAccuracy:true,timeout:12000,maximumAge:30000});
 });
-function cancelLocationRequest(){state.locationSeq++;state.locating=false;$('#locateMe').disabled=false;}
-$('#useBuildingLocation').addEventListener('click',()=>{
-  const b=state.data.buildings.find(b=>b.building_id===state.building);
-  if(!validPosition(b)){notify('좌표가 있는 건물을 먼저 선택해 주세요.');return;}
-  cancelLocationRequest();usePosition({lat:b.lat,lon:b.lon,kind:'building'});
-  $('#locationStatus').textContent=b.building_name+' 기준 시연입니다. 실제 내 위치가 아닙니다.';
-});
-$('#clearLocation').addEventListener('click',()=>{
-  cancelLocationRequest();state.position=null;renderPosition();renderNearby();fitMap();
-  $('#locationStatus').textContent='위치 정보를 지웠습니다. 필요할 때 내 위치를 다시 확인하세요.';
-});
-function renderFallback() {
-  const svg=$('#fallbackMap');svg.replaceChildren();
-  svg.append(svgNode('rect',{width:880,height:490,fill:'#f3f7f1'}));
-  for(let x=40;x<880;x+=60)svg.append(svgNode('line',{x1:x,y1:0,x2:x,y2:490,stroke:'#e1e8dd'}));
-  for(let y=40;y<490;y+=60)svg.append(svgNode('line',{x1:0,y1:y,x2:880,y2:y,stroke:'#e1e8dd'}));
-  if($('#showAssignments').checked)(activePlan()?.assignments || []).forEach(a=>{
-    const b=state.data.buildings.find(b=>b.building_id===a.building_id),c=candidateFor(a.candidate_id);
-    if(!validPosition(b)||!validPosition(c))return;
-    const p=fallbackPosition(b),q=fallbackPosition(c);
-    svg.append(svgNode('line',{x1:p.x,y1:p.y,x2:q.x,y2:q.y,stroke:state.candidate===c.candidate_id?'#568a72':'#b5c9bd','stroke-width':1.3,'stroke-dasharray':'5 4'}));
-  });
-  state.data.buildings.filter(validPosition).forEach(b=>{
-    const p=fallbackPosition(b),dot=svgNode('circle',{cx:p.x,cy:p.y,r:state.building===b.building_id?7:4.5,fill:state.building===b.building_id?'#e58c4a':'#7587a2',tabindex:0,role:'button','aria-label':b.building_name+' 선택'});
-    dot.append(svgNode('title',{},b.building_name));dot.addEventListener('click',()=>pickBuilding(b.building_id,true));dot.addEventListener('keydown',e=>{if(e.key==='Enter')pickBuilding(b.building_id,true);});svg.append(dot);
-  });
-  state.data.candidates.filter(validPosition).forEach(c=>{
-    const p=fallbackPosition(c),group=svgNode('g',{tabindex:0,role:'button','aria-label':c.name});
-    group.append(svgNode('circle',{cx:p.x,cy:p.y,r:state.candidate===c.candidate_id?14:11,fill:c.eligibility?.eligible?'#157859':'#b58b5b',stroke:'#fff','stroke-width':3}),svgNode('text',{x:p.x+17,y:p.y+5,fill:'#274a3f','font-size':14,'font-weight':700},c.candidate_id));
-    group.addEventListener('click',()=>chooseCandidate(c.candidate_id));group.addEventListener('keydown',e=>{if(e.key==='Enter')chooseCandidate(c.candidate_id);});svg.append(group);
-  });
-  svg.append(svgNode('text',{x:22,y:478,fill:'#61736a','font-size':12},'위경도 상대 위치 도식 · 실제 도로와 경로를 표시하지 않습니다'));
+$('#clearLocation').addEventListener('click',()=>{state.locationSeq++;state.locating=false;state.position=null;$('#locateMe').disabled=false;renderPosition();renderNearby();fitMap();$('#locationStatus').textContent='위치 정보를 지웠습니다.';});
+function selectBasemap(mode,updateURL=true){
+  if(!['street','satellite','hybrid'].includes(mode))return;
+  if(mode!=='street'&&!state.mapConfig?.imagery_available){$('#basemapNote').textContent=state.mapConfig?.message||'영상지도 설정을 확인하고 있습니다.';return;}
+  state.basemap=mode;state.imageryLoaded=0;state.imageryErrors=0;
+  $$('#basemapButtons button').forEach(b=>{const selected=b.dataset.basemap===mode;b.classList.toggle('selected',selected);b.setAttribute('aria-pressed',String(selected));});
+  if(updateURL){const url=new URL(location.href);if(mode==='street')url.searchParams.delete('basemap');else url.searchParams.set('basemap',mode);history.replaceState(null,'',url);}
+  $('#basemapNote').textContent=mode==='street'?'일반지도 · 위치·권역과 도로명을 확인하세요.':'촬영일 미확인 · 실시간 영상이 아닙니다. 사진을 자세히 보려면 제안 권역 표시를 꺼보세요.';
+  if(!state.map||!state.basemapLayers)return;
+  Object.values(state.basemapLayers).forEach(l=>{if(state.map.hasLayer(l))state.map.removeLayer(l);});
+  const layers=state.basemapLayers;
+  if(mode==='street')layers.street.addTo(state.map);
+  else{layers.satellite.addTo(state.map);if(mode==='hybrid')layers.labels.addTo(state.map);}
+  $('#mapState').textContent=mode==='street'?'일반지도 · OSM':'영상 불러오는 중';
+  renderMap();
 }
-function renderMap() {
-  if(!state.map || !window.L){renderFallback();return;}
-  state.layer.clearLayers();
-  if($('#showAssignments').checked)(activePlan()?.assignments || []).forEach(a=>{
-    const b=state.data.buildings.find(b=>b.building_id===a.building_id),c=candidateFor(a.candidate_id);
-    if(validPosition(b)&&validPosition(c))L.polyline([[b.lat,b.lon],[c.lat,c.lon]],{color:state.candidate===c.candidate_id?'#568a72':'#a8bfb2',weight:1.4,dashArray:'4 5',opacity:.7}).addTo(state.layer);
-  });
-  state.data.buildings.filter(validPosition).forEach(b=>{
-    L.circleMarker([b.lat,b.lon],{radius:state.building===b.building_id?7:4,color:'#fff',weight:1.5,fillColor:state.building===b.building_id?'#e58c4a':'#7287a8',fillOpacity:1}).addTo(state.layer).bindTooltip(el('span',b.building_name)).on('click',()=>pickBuilding(b.building_id,true));
-  });
-  state.data.candidates.filter(validPosition).forEach(c=>{
-    L.circleMarker([c.lat,c.lon],{radius:state.candidate===c.candidate_id?13:10,color:'#fff',weight:3,fillColor:c.eligibility?.eligible?'#157859':'#b58b5b',fillOpacity:1}).addTo(state.layer).bindTooltip(el('span',c.candidate_id+' · '+c.name)).on('click',()=>chooseCandidate(c.candidate_id));
-  });
-}
-function fitMap() {if(state.map&&state.data.study_area?.bounds)state.map.fitBounds(state.data.study_area.bounds,{padding:[22,22]});}
-$('#fitMap').addEventListener('click',fitMap);$('#showAssignments').addEventListener('change',renderMap);
+$('#basemapButtons').addEventListener('click',e=>{const button=e.target.closest('[data-basemap]');if(button&&!button.disabled)selectBasemap(button.dataset.basemap);});
 function loadMapLibrary() {
   const link=document.createElement('link');link.rel='stylesheet';link.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';link.integrity='sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';link.crossOrigin='';document.head.append(link);
   const script=document.createElement('script');script.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';script.integrity='sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';script.crossOrigin='';
@@ -232,114 +223,21 @@ function loadMapLibrary() {
   script.onload=()=>{
     if(!window.L)return;
     $('#fallbackMap').classList.add('hidden');
-    state.map=L.map('map',{scrollWheelZoom:true,touchZoom:true,keyboard:true}).setView(state.data.study_area?.center || [37.521,126.871],15);
+    state.map=L.map('map',{scrollWheelZoom:true,touchZoom:true,keyboard:true,preferCanvas:true});
     state.layer=L.layerGroup().addTo(state.map);
     state.locationLayer=L.layerGroup().addTo(state.map);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',updateWhenIdle:true}).on('tileerror',()=>{$('#mapState').textContent='좌표 지도 · 배경 미연결';}).on('load',()=>{$('#mapState').textContent='Leaflet · OSM';}).addTo(state.map);
+    const street=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',updateWhenIdle:true}).on('tileerror',()=>{if(state.basemap==='street')$('#mapState').textContent='일반 배경 연결 확인 필요';}).on('load',()=>{if(state.basemap==='street')$('#mapState').textContent='일반지도 · OSM';});
+    const attribution='&copy; <a href="https://www.vworld.kr/" target="_blank" rel="noopener noreferrer">국토교통부 · VWorld</a>';
+    const satellite=L.tileLayer('/api/map/tiles/Satellite/{z}/{x}/{y}',{minZoom:1,maxZoom:19,maxNativeZoom:19,attribution,updateWhenIdle:true,keepBuffer:1,zIndex:1})
+      .on('tileload',()=>{if(state.basemap!=='street'){state.imageryLoaded++;$('#mapState').textContent=state.basemap==='hybrid'?'영상+도로명 · VWorld':'위성·항공 · VWorld';}})
+      .on('tileerror',()=>{if(state.basemap==='street')return;state.imageryErrors++;if(state.imageryErrors>=3&&!state.imageryLoaded){selectBasemap('street');$('#basemapNote').textContent='영상을 불러오지 못해 일반지도로 전환했어요. VWorld의 WMTS/TMS 권한·등록 URL과 연결 상태를 확인해 주세요.';}else $('#basemapNote').textContent='일부 영상이 누락됐어요. 범위·연결 상태를 확인해 주세요. 촬영일은 미확인입니다.';});
+    const labels=L.tileLayer('/api/map/tiles/Hybrid/{z}/{x}/{y}',{minZoom:1,maxZoom:19,maxNativeZoom:19,attribution,updateWhenIdle:true,keepBuffer:1,zIndex:2}).on('tileerror',()=>{if(state.basemap==='hybrid')$('#basemapNote').textContent='도로명 일부를 불러오지 못했어요. 위성·항공 보기로 사진만 볼 수 있어요.';});
+    state.basemapLayers={street,satellite,labels};selectBasemap(state.basemap,false);
     fitMap();renderMap();renderPosition();
     if(state.position)state.map.setView([state.position.lat,state.position.lon],16);
     if(state.page!=='home')setTimeout(()=>state.map.invalidateSize(),0);
   };
   document.head.append(script);
-}
-function searchItems() {
-  const q=$('#buildingSearch').value.trim().toLowerCase();
-  return state.data.buildings.filter(b=>(b.building_id+' '+b.building_name+' '+b.road_address).toLowerCase().includes(q));
-}
-function rebuildSelect() {
-  const items=searchItems(),select=$('#buildingSelect');select.replaceChildren();
-  if(!items.length){
-    const option=el('option','일치하는 건물이 없습니다');option.value='';select.append(option);
-    state.building=null;$('#buildingContext').textContent='검색 결과 없음';invalidateMatch('검색 조건에 맞는 건물이 없습니다.');renderMap();return;
-  }
-  items.forEach(b=>{const op=el('option',b.building_id+' · '+b.building_name);op.value=b.building_id;select.append(op);});
-  if(!items.some(b=>b.building_id===state.building))state.building=items[0].building_id;
-  pickBuilding(state.building);
-}
-function pickBuilding(id,fromMap) {
-  const building=state.data.buildings.find(b=>b.building_id===id);if(!building)return;
-  if(fromMap){$('#buildingSearch').value='';state.building=id;rebuildSelect();return;}
-  state.building=id;$('#buildingSelect').value=id;
-  $('#buildingContext').textContent=building.road_address+' · '+(building.is_demo?'가상 자료':'자료 기반 건물');
-  const a=assignmentFor(id);if(a?.candidate_id)state.candidate=a.candidate_id;
-  invalidateMatch('선택한 건물의 안내를 확인하세요.');renderCandidate();renderMap();
-}
-$('#buildingSearch').addEventListener('input',rebuildSelect);
-$('#buildingSelect').addEventListener('change',e=>pickBuilding(e.target.value));
-$('#categorySelect').addEventListener('change',()=>invalidateMatch('품목이 바뀌었습니다. 안내를 다시 확인해 주세요.'));
-$('#quantity').addEventListener('input',()=>invalidateMatch('수량이 바뀌었습니다. 안내를 다시 확인해 주세요.'));
-async function showMatch() {
-  const building=searchItems().find(b=>b.building_id===state.building);
-  if(!building){invalidateMatch('조회할 건물을 먼저 선택해 주세요.');return;}
-  const quantity=Number($('#quantity').value),category=$('#categorySelect').value;
-  if(!Number.isInteger(quantity)||quantity<1||quantity>99){notify('수량은 1~99 사이 정수로 입력해 주세요.');return;}
-  const stamp=fingerprint(),seq=++state.matchSeq;
-  state.lastResult=null;$('#requestButton').disabled=true;$('#matchButton').disabled=true;
-  const payload={building_id:building.building_id,category,quantity,plan_id:state.plan};
-  const rule=state.data.rules.find(r=>r.category===category),a=assignmentFor(building.building_id);
-  let result={guidance:rule?.guidance || '안내 자료 확인 필요',rule,proposed_candidate:candidateFor(a?.candidate_id),assignment:a};
-  try {
-    if(state.apiReady){
-      if(state.matchAbort)state.matchAbort.abort();
-      const controller=new AbortController();state.matchAbort=controller;
-      const timer=setTimeout(()=>controller.abort(),10000);
-      try{
-        const response=await fetch('/api/match',{...jsonOptions('POST',payload),signal:controller.signal});
-        if(!response.ok)throw new Error('조회 실패 ('+response.status+')');
-        result=await response.json();
-      }finally{clearTimeout(timer);}
-    }
-    if(seq!==state.matchSeq||stamp!==fingerprint())return;
-    const box=$('#matchResult');box.replaceChildren();
-    box.append(el('div',state.apiReady?'저장된 자료 조회':'독립 시연 자료','result-label'),el('div',building.building_name+' / '+labels[category],'result-title'));
-    box.append(el('p',result.proposed_candidate?'배치 제안: '+result.proposed_candidate.name:'현재 배치안에서 미배정'));
-    if(result.assignment?.distance_m!=null)box.append(el('p','직선거리 참고: '+fmt(result.assignment.distance_m,'m')));
-    box.append(el('p',result.guidance));
-    if(result.rule){
-      box.append(el('p','요일: '+(result.rule.days || '공식 확인 필요')+' / 시간: '+(result.rule.time_text || '공식 확인 필요')));
-      box.append(el('p','규칙 상태: '+(result.rule.is_demo?'시연 자료':'자료 확인 필요')+' · 기준일 '+(result.rule.reference_date || '미확인'),'warning'));
-      if(result.rule.source_url)box.append(safeLink(result.rule.source_url,'안내 원문 보기'));
-    }
-    box.append(el('p','제안 후보는 실제 배출 가능한 장소로 확정되지 않았습니다.','warning'));
-    state.lastResult={...payload,building_name:building.building_name,stamp};
-    $('#requestButton').disabled=false;notify('');
-  }catch(error){
-    if(error.name!=='AbortError'&&seq===state.matchSeq)notify(error.message);
-  }finally{if(seq===state.matchSeq)$('#matchButton').disabled=!state.building;}
-}
-$('#matchButton').addEventListener('click',showMatch);
-function saveSessionRequests() {try{sessionStorage.setItem('preview_requests',JSON.stringify(state.requests));}catch{}}
-async function refreshRequests() {
-  try{
-    if(state.apiReady){
-      const rows=await api('/api/requests');
-      state.requests=rows.map(r=>({id:r.request_id,building_name:state.data.buildings.find(b=>b.building_id===r.building_id)?.building_name || r.building_id,category:r.category,quantity:r.quantity,status:'시연 접수(DB)'}));
-    }
-    state.requestsError='';
-  }catch(error){
-    state.requestsError='요청 목록을 불러오지 못했습니다. '+error.message;renderRequests();throw error;
-  }
-  $('#countRequests').textContent=state.requests.length;renderRequests();
-}
-function renderRequests(){ $('#countRequests').textContent=state.requests.length; }
-$('#requestButton').addEventListener('click',async()=>{
-  if(state.requestBusy||!state.lastResult||state.lastResult.stamp!==fingerprint())return;
-  const result={...state.lastResult};state.requestBusy=true;$('#requestButton').disabled=true;
-  try{
-    if(state.apiReady){await api('/api/requests',jsonOptions('POST',{building_id:result.building_id,category:result.category,quantity:result.quantity,plan_id:result.plan_id}));await refreshRequests();}
-    else{state.requests.push({id:Date.now(),building_name:result.building_name,category:result.category,quantity:result.quantity,status:'독립 시연 접수'});saveSessionRequests();await refreshRequests();}
-    if(result.stamp===fingerprint())$('#requestButton').textContent='데모 요청 등록됨';
-  }catch(e){notify(e.message);if(result.stamp===fingerprint())$('#requestButton').disabled=false;}
-  finally{state.requestBusy=false;}
-});
-function localReply(message) {
-  const category=/건전지|배터리|폐전지/.test(message)?'battery':/의자|책상|소파|침대|가구|대형폐기물/.test(message)?'bulky':/재활용|분리수거|플라스틱|페트병|캔|종이/.test(message)?'recycle':/쓰레기|종량제|생활폐기물|배출|버리/.test(message)?'general':null;
-  if(!category)return '품목을 판별하지 못했습니다. 일반쓰레기, 재활용품, 폐건전지, 대형폐기물 중 무엇인지 알려주세요.';
-  const rule=state.data.rules.find(r=>r.category===category);
-  let response=rule?.guidance || '공식 안내 확인이 필요합니다.';
-  if(/언제|요일|시간|몇 시/.test(message))response+='\n요일: '+(rule?.days || '공식 확인 필요')+' / 시간: '+(rule?.time_text || '공식 확인 필요');
-  if(/어디|위치|장소|수거함/.test(message))response+='\n현재 지도는 제안 후보입니다. 실제 배출 장소로 확정하지 않습니다.';
-  return response+'\n[독립 시연 · LLM 미사용]';
 }
 async function sendChat(message) {
   if(state.chatBusy||!message.trim()||message.length>500)return;
@@ -348,30 +246,60 @@ async function sendChat(message) {
   $$('#chatForm button,.quick-prompts button').forEach(b=>b.disabled=true);
   try{
     if(state.apiReady){
-      const data=await api('/api/chat',{...jsonOptions('POST',{message,building_id:state.building}),timeoutMs:140000});
-      bubble.textContent=data.response+'\n\n['+(data.ai_used?'AI 분류 + 저장된 규칙':'규칙 기반 안내 · LLM 미사용')+']';
-    }else bubble.textContent=localReply(message);
-  }catch(e){bubble.textContent='안내 연결 오류: '+e.message;}
+      const district=$('#chatDistrict').value;
+      const data=await api('/api/chat',{...jsonOptions('POST',{message,district_code:district,context:state.chatContext}),timeoutMs:140000});
+      if(district!==$('#chatDistrict').value){bubble.textContent='지역이 변경되어 이전 지역의 응답을 닫았어요. 새 지역으로 다시 질문해 주세요.';return;}
+      state.chatContext=data.context||null;
+      const method=data.retrieval?.mode==='item_database'?'공식 품목 DB 조회 · 규격/금액 자동 추정 없음':data.retrieval?.embedding_used?'임베딩 문서 검색 · 답변 생성 없음':data.citations?.length?'문서 키워드 검색 · 모델 미사용':data.ai_used?'AI 분류 + 저장된 규칙':'규칙 기반 안내 · LLM 미사용';
+      bubble.textContent=data.response;
+      if(data.suggestions?.length){const choices=el('div',null,'chat-choices');data.suggestions.forEach(s=>{const b=el('button',s.label,'minor');b.type='button';b.addEventListener('click',()=>sendChat(s.message));choices.append(b);});bubble.append(choices);}
+      const detail=el('details',null,'retrieval-note');detail.append(el('summary','안내 방식'),el('p',method));bubble.append(detail);
+      $('#aiStatus').textContent=['item_clarification','facility_clarification'].includes(data.mode)?'추가 확인 필요':data.mode==='item_database'?'품목표 조회 완료':data.citations?.length?'공식 안내 찾음':data.ai_used?'질문 분류 완료':'추가 자료 필요';
+      if(data.retrieval?.message)bubble.append(el('p',data.retrieval.message,'retrieval-note'));
+      renderKnowledgeReferences(bubble,data.citations || []);
+    }else {bubble.textContent='서버 연결을 확인해 주세요. 연결되지 않은 상태에서 배출 방법을 추정하지 않습니다.';$('#aiStatus').textContent='서버 연결 필요';}
+  }catch(e){bubble.textContent='안내를 불러오지 못했어요. 잠시 후 다시 보내주세요. '+e.message;$('#aiStatus').textContent='연결 확인 필요';}
   finally{state.chatBusy=false;$$('#chatForm button,.quick-prompts button').forEach(b=>b.disabled=false);target.scrollTop=target.scrollHeight;}
 }
+function renderKnowledgeReferences(parent,citations) {
+  if(!citations.length)return;
+  const list=el('div',null,'knowledge-references');
+  list.append(el('strong','관련 공식 안내 · '+citations.length+'건'));
+  citations.forEach(item=>{
+    const card=el('article',null,'reference-card');
+    card.append(el('h3',item.title),el('p',item.text));
+    card.append(el('small',(item.district_name || '지역 미확인')+' · 원문 확인 '+item.checked_at+' · 원문 기준일 '+(item.reference_date || '미명시')));
+    const period=item.effective_from || item.effective_until
+      ? '시행기간 '+(item.effective_from || '시작 미명시')+' ~ '+(item.effective_until || '종료 미명시')
+      : '시행기간 미명시 · 확인일은 시행일과 다릅니다.';
+    card.append(el('small',period),safeLink(item.source_url,'공식 원문에서 확인하기'));
+    list.append(card);
+  });
+  parent.append(list);
+}
+async function refreshKnowledgeStatus() {
+  try {
+    const [status,items,hub]=await Promise.all([api('/api/knowledge/status'),api('/api/waste-items/status'),api('/api/data-hub/status')]);
+    $('#knowledgeStatus').textContent='양천구 공식 품목 '+items.item_count+'개 · 규격별 수수료 '+items.rule_count+'건 · 안내 요약 '+status.chunk_count+'개 · '+(status.embedding_enabled && status.index_complete
+      ? '의미 검색 사용 설정 · 질문할 때 연결 확인'
+      : '키워드 검색과 기본 안내 이용 가능');
+    $('#hubStatus').textContent='자료 묶음: 두 지역 '+fmt(hub.building_parcels)+'필지 · 출처 기록 '+hub.source_count+'개 · 안내 요약 '+hub.guidance_documents+'개 · 추가 조사 항목 '+hub.gaps+'개. 전국 전체 품목·운영점 확보 완료를 뜻하지 않습니다.';
+  } catch { $('#knowledgeStatus').textContent='문서 상태 조회 실패 · 기본 안내 사용'; }
+}
 $('#chatForm').addEventListener('submit',e=>{e.preventDefault();const input=$('#chatInput');const message=input.value.trim();if(message&&!state.chatBusy){input.value='';sendChat(message);}});
+$('#chatDistrict').addEventListener('change',()=>{state.chatContext=null;$('#chatMessages').replaceChildren(el('div','안내 지역을 변경했어요. 이전 품목·규격 연결을 지웠습니다. 새 지역의 물건과 궁금한 점을 알려주세요.','bubble bot'));$('#aiStatus').textContent='지역 변경';});
 $$('[data-prompt]').forEach(b=>b.addEventListener('click',()=>sendChat(b.dataset.prompt)));
-$('#exportAnalysis').addEventListener('click',()=>{
-  const blob=new Blob([JSON.stringify(state.data.analysis,null,2)],{type:'application/json'});
-  const url=URL.createObjectURL(blob),a=el('a');a.href=url;a.download='greenzone-analysis.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-});
-async function initialize() {
-  try{const data=JSON.parse(sessionStorage.getItem('preview_requests') || '[]');if(Array.isArray(data))state.requests=data;}catch{}
-  renderOverview();rebuildSelect();renderRequests();$('#countRequests').textContent=state.requests.length;
-  go(location.hash.slice(1) || 'home',false);loadMapLibrary();
-  if(location.protocol==='file:'){$('#apiState').textContent='독립 시연 · 서버 미연결';return;}
+
+$('#exportAnalysis').addEventListener('click',()=>{if(!state.pilot)return;const url=URL.createObjectURL(new Blob([JSON.stringify(state.pilot,null,2)],{type:'application/json'}));const a=el('a');a.href=url;a.download='greenzone-official-area-analysis.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+async function initialize(){
+  go(location.hash.slice(1)||'home',false);loadMapLibrary();
   try{
-    const [catalog,config]=await Promise.all([api('/api/catalog'),api('/api/config')]);
-    state.data=catalog;state.apiReady=true;
-    $('#apiState').textContent='FastAPI + SQLite 연결';$('#aiStatus').textContent=config.ai_enabled?'AI 분류 선택 기능 사용':'규칙 기반 안내 · AI 꺼짐';
-    state.requests=[];renderOverview();rebuildSelect();
-    await refreshRequests().catch(error=>notify(error.message));
-    if(state.position&&state.map)state.map.setView([state.position.lat,state.position.lon],16);else fitMap();
-  }catch(error){state.apiReady=false;$('#apiState').textContent='독립 시연 · 서버 미연결';notify('서버 연결이 없어 저장된 시연 자료를 보여 줍니다. 수정·서버 저장은 사용할 수 없습니다.');}
+    const [data,config,mapConfig]=await Promise.all([api('/api/pilot-analysis',{timeoutMs:30000}),api('/api/config'),api('/api/map/config').catch(()=>null)]);
+    state.mapConfig=mapConfig;$$('#basemapButtons button').forEach(b=>{b.disabled=b.dataset.basemap!=='street'&&!mapConfig?.imagery_available;});
+    if(!mapConfig?.imagery_available)$('#basemapNote').textContent=mapConfig?.message||'영상지도 설정을 확인하지 못했습니다. 일반지도는 사용할 수 있어요.';
+    state.pilot=data;state.apiReady=true;$('#apiState').textContent='공식 자료 연결';renderOverview();renderMap();fitMap();renderBuildingSearch();
+    if(['satellite','hybrid'].includes(initialBasemap)&&mapConfig?.imagery_available)selectBasemap(initialBasemap,false);
+    $('#aiStatus').textContent='질문을 입력해 주세요';await refreshKnowledgeStatus();
+  }catch(e){$('#apiState').textContent='자료 연결 확인 필요';notify('공식 분석 자료를 불러오지 못했습니다. 서버 연결을 확인해 주세요. '+e.message);}
 }
 initialize();
