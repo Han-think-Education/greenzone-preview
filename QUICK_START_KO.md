@@ -2,6 +2,8 @@
 
 팀원에게 공유하는 5일 프로젝트용 프리뷰입니다. 신월1동·화곡1동의 수집·분석 결과를 웹에서 조회합니다. **분석 파일 제작과 웹 실행은 별도 작업**입니다.
 
+처음 시작한다면 [README의 .env 생성·API 신청·입력 순서](README.md)를 먼저 읽으세요. [설정 전체표](docs/ENV_REFERENCE.md)에서 현재 사용하는 항목과 후속 수집용 주석 항목을 구분했습니다. 건축HUB·KOSIS 키는 현재 웹 실행에 필요하지 않습니다.
+
 ## 1. Docker로 시작하기 - 권장
 
 준비: Docker Desktop(Windows는 WSL2 엔진 사용), Git. 별도 FastAPI 컨테이너·MariaDB·Node.js 설치는 필요하지 않습니다. `web` 컨테이너가 FastAPI와 화면을 제공하고 SQLite를 사용합니다.
